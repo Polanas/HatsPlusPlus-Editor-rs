@@ -1,0 +1,48 @@
+
+[package]
+name = "hats_plus_plus_editor"
+version = "0.1.0"
+edition = "2021"
+
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+strip = true
+opt-level = "z"
+lto = true
+codegen-units = 1
+
+[dev-dependencies]
+rwh_05 = { package = "raw-window-handle", version = "0.5.2", features = [
+    "std",
+] }
+
+[dependencies]
+anyhow = "1.0.86"
+color-eyre = "0.6.3"
+thiserror = "1.0.61"
+pixas = { path = "../pixas" }
+egui_dock = "0.12.0"
+num-derive = "0.4.2"
+num-traits = "0.2.19"
+derivative = "2.2.0"
+bevy_math = "0.13.2"
+rfd = "0.14.1"
+image = { version = "0.25.1", features = ["png"] }
+egui_extras = { version = "0.27.2", features = ["default", "image"] }
+downcast-rs = "1.2.1"
+glutin = "0.32.0"
+log = "0.4.21"
+puffin = "0.19.0"
+eframe = { version = "0.27.2", features = ["persistence"] }
+egui_glow = "0.27.2"
+catppuccin-egui = { path = "../egui-catppuccin", default-features = false, features = [
+    "egui27",
+] }
+serde_json = "1.0.117"
+serde = "1.0.203"
