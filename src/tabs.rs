@@ -1,4 +1,3 @@
-use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use std::cell::RefCell;
@@ -9,14 +8,14 @@ use eframe::egui::{self, Button, Color32, Grid, Id, Layout, RichText, Vec2};
 use eframe::egui::{DragValue, Ui};
 use egui_dock::{DockArea, DockState, NodeIndex, SurfaceIndex, TabViewer};
 
+use crate::animation::Animation;
 use crate::animation_window::{AnimationWindow, AnimationWindowFrameData};
 use crate::event_bus::EventBus;
 use crate::frames_from_range::frames_from_range;
+use crate::hats::WereableHat;
 use crate::hats::{AbstractHat, Hat, HatType, LinkFrameState};
-use crate::hats::{HatName, WereableHat};
-use crate::renderer::{self, Renderer};
-use crate::ui_text::UiText;
-use crate::FrameData;
+use crate::renderer::Renderer;
+use crate::{colors, egui_utils, FrameData};
 pub enum NewHatEvent {
     Opened(std::path::PathBuf),
     New,
@@ -216,7 +215,11 @@ impl MyTabViewer<'_> {
                     "Inverted",
                 );
             });
-        for anim in &mut hat.animations {
+        self.draw_animations_ui(ui, &mut hat.animations);
+    }
+
+    fn draw_animations_ui(&mut self, ui: &mut Ui, animations: &mut [Animation]) {
+        for anim in animations {
             egui::CollapsingHeader::new(anim.anim_type.to_string()).show(ui, |ui| {
                 Grid::new("grid").show(ui, |ui| {
                     ui.label("Delay");
@@ -234,32 +237,7 @@ impl MyTabViewer<'_> {
                     ui.label("Looping");
                     ui.checkbox(&mut anim.looping, "");
                 });
-                let frame = egui::Frame::default().inner_margin(4.0);
-                #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-                struct Location {
-                    row: usize,
-                }
-                let mut frame_ind_to_remove = None;
-                let (_, dropped_payload) = ui.dnd_drop_zone::<Location, ()>(frame, |ui| {
-                    for (row_idx, item) in anim.frames.iter().enumerate() {
-                        let item_id =
-                            Id::new(("my_drag_and_drop_demo", anim.anim_type as u8, row_idx));
-                        let item_location = Location { row: row_idx };
-                        ui.horizontal(|ui| {
-                            let response = ui
-                                .dnd_drag_source(item_id, item_location, |ui| {
-                                    ui.label(item.to_string());
-                                })
-                                .response;
-                            if ui.button("X").clicked() {
-                                frame_ind_to_remove = Some(row_idx);
-                            }
-                        });
-                    }
-                });
-                if let Some(ind) = frame_ind_to_remove {
-                    anim.frames.remove(ind);
-                }
+                //show frames
                 ui.horizontal(|ui| {
                     ui.add(egui::DragValue::new(&mut anim.new_frame)).changed();
                     if ui.button("Add Frame").clicked() {
@@ -283,6 +261,10 @@ impl MyTabViewer<'_> {
                 });
                 if ui.button("Clear Frames").clicked() {
                     anim.frames.clear();
+                }
+                let config = &self.frame_data.config;
+                if egui_utils::red_button(ui, "Delete", config.is_light_theme()).clicked() {
+                    //do stuff
                 }
             });
         }

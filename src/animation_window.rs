@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
 use bevy_math::{vec2, IVec2, Vec2};
-use eframe::egui::{DragValue, Id, Ui, Window};
+use eframe::egui::{Button, CollapsingHeader, DragValue, Id, ImageButton, Ui, Window};
 use eframe::glow::Context;
 use eframe::glow::{self, HasContext};
 
+use crate::{animation, egui_utils};
 use crate::{animation::Animation, shader::Shader, texture::Texture, VERTEX_ARRAY};
 
 const DUCK_GAME_HERTZ: f32 = 60.0;
@@ -14,6 +15,7 @@ pub struct AnimationWindow {
     pub current_anim_index: usize,
     pub current_frame_index: usize,
     frame_timer: f32,
+    paused: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -49,24 +51,39 @@ pub struct AnimationWindowFrameData<'a> {
 impl AnimationWindow {
     pub fn new() -> Self {
         Self {
+            paused: false,
             current_anim_index: 0,
             current_frame_index: 0,
             frame_timer: 0.0,
         }
     }
     pub fn draw(&mut self, data: AnimationWindowFrameData) {
-        let Some(animation) = data.animations.get(self.current_anim_index) else {
-            return;
+        self.current_anim_index = usize::min(self.current_anim_index, data.animations.len() - 1);
+        let animation = data.animations.get(self.current_anim_index);
+        if let Some(animation) = animation {
+            if !self.paused {
+                self.update(animation, data.hertz);
+            }
         };
-        self.update(animation, data.hertz);
         Window::new(data.hat_name)
             .id(Id::new(data.texture.path().unwrap()))
             .resizable(false)
+            .max_width(data.texture.width() as f32 * data.ui.ctx().pixels_per_point())
             .show(data.ui.ctx(), |ui| {
-                ui.add(
-                    DragValue::new(&mut self.current_anim_index)
-                        .clamp_range(0..=(data.animations.len() - 1)),
-                );
+                CollapsingHeader::new("Animations").show(ui, |ui| {
+                    for (i, anim) in data.animations.iter().enumerate() {
+                        let anim_name = anim.anim_type.to_string();
+                        ui.scope(|ui| {
+                            if i == self.current_anim_index {
+                                let widgets = &mut ui.style_mut().visuals.widgets;
+                                widgets.inactive = widgets.active;
+                            }
+                            if ui.button(anim_name).clicked() {
+                                self.current_anim_index = i;
+                            }
+                        });
+                    }
+                });
                 let (rect, _) = ui.allocate_exact_size(
                     eframe::egui::Vec2::new(
                         data.frame_size.x as f32 * 5.0,
@@ -78,8 +95,11 @@ impl AnimationWindow {
                         focusable: false,
                     },
                 );
+                let current_frame = animation
+                    .map(|anim| *anim.frames.get(self.current_frame_index).unwrap_or(&0))
+                    .unwrap_or_default() as f32;
                 let uniforms = Uniforms {
-                    current_frame: animation.frames[self.current_frame_index] as f32,
+                    current_frame,
                     frames_amount: Vec2::new(
                         (data.texture.width() / data.frame_size.x) as f32,
                         (data.texture.height() / data.frame_size.y) as f32,
@@ -94,10 +114,56 @@ impl AnimationWindow {
                     })),
                 };
                 ui.painter().add(callback);
+                let Some(animation) = animation else {
+                    return;
+                };
+                if animation.frames.len() < 2 {
+                    return;
+                }
+                egui_utils::centered(ui, |ui| {
+                    ui.spacing_mut().item_spacing.x = 5.0;
+                    if ui
+                        .add(Button::new("⬅").min_size(eframe::egui::Vec2::splat(22.0)))
+                        .clicked()
+                    {
+                        self.current_frame_index = self
+                            .current_frame_index
+                            .checked_sub(1)
+                            .unwrap_or(animation.frames.len() - 1);
+                    }
+                    let pause_icon = match self.paused {
+                        true => "▶",
+                        false => "󰏤",
+                    };
+                    if ui
+                        .add(Button::new(pause_icon).min_size(eframe::egui::Vec2::splat(22.0)))
+                        .clicked()
+                    {
+                        self.paused = !self.paused;
+                    }
+                    if ui
+                        .add(Button::new("➡").min_size(eframe::egui::Vec2::splat(22.0)))
+                        .clicked()
+                    {
+                        self.current_frame_index += 1;
+                    }
+                });
+                ui.vertical_centered(|ui| {
+                    ui.label(format!(
+                        "Frame {0} / {1}",
+                        self.current_frame_index,
+                        animation.frames.len()
+                    ));
+                });
+                self.current_frame_index %= animation.frames.len();
             });
     }
-
     fn update(&mut self, animation: &Animation, hertz: f32) {
+        if animation.frames.is_empty() {
+            self.current_frame_index = 0;
+            return;
+        }
+        self.current_frame_index = usize::min(self.current_frame_index, animation.frames.len() - 1);
         self.frame_timer += hertz / DUCK_GAME_HERTZ;
         if self.frame_timer > animation.delay as f32 {
             self.frame_timer = 0.0;

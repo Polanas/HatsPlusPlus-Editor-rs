@@ -3,7 +3,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
 mod animation;
+mod egui_utils;
 mod animation_window;
+mod colors;
 mod event_bus;
 mod file_utils;
 mod frames_from_range;
@@ -27,7 +29,9 @@ mod ui_text;
 extern crate num_derive;
 
 use anyhow::{bail, Result};
-use eframe::egui::{vec2, Button, Id, KeyboardShortcut, ViewportBuilder};
+use eframe::egui::{
+    vec2, Button, CollapsingHeader, FontDefinitions, Id, KeyboardShortcut, ViewportBuilder,
+};
 use eframe::glow;
 use eframe::glow::NativeBuffer;
 use eframe::{
@@ -77,12 +81,22 @@ pub struct AppConfig {
     pub theme: Theme,
 }
 
+impl AppConfig {
+    pub fn is_light_theme(&self) -> bool {
+        match self.theme {
+            Theme::Latte => true,
+            _ => false,
+        }
+    }
+}
+
 pub struct FrameData<'a> {
     gl: &'a Context,
     shader: Shader,
     time: f32,
     hertz: u32,
     ui_text: Rc<UiText>,
+    config: AppConfig,
 }
 
 impl<'a> FrameData<'a> {
@@ -92,8 +106,10 @@ impl<'a> FrameData<'a> {
         time: f32,
         hertz: u32,
         ui_text: Rc<UiText>,
+        config: AppConfig,
     ) -> Self {
         Self {
+            config,
             gl,
             shader,
             time,
@@ -428,6 +444,17 @@ impl MyEguiApp {
                 config
             }
         };
+        let mut fonts = egui::FontDefinitions::default();
+        fonts.font_data.insert(
+            "Caskaydia".to_owned(),
+            egui::FontData::from_static(include_bytes!("../font.ttf")),
+        );
+        fonts
+            .families
+            .entry(egui::FontFamily::Proportional)
+            .or_default()
+            .insert(0, "Caskaydia".to_owned());
+        cc.egui_ctx.set_fonts(fonts);
         catppuccin_egui::set_theme(&cc.egui_ctx, config.theme.catppuccin());
         let language = config.language;
         let gl = cc.gl.as_ref().unwrap().as_ref();
@@ -550,6 +577,7 @@ impl eframe::App for MyEguiApp {
                     self.time,
                     self.hertz,
                     self.ui_text.clone(),
+                    *self.config,
                 ),
             );
             self.execute_shortcuts(gl, ui);

@@ -1,4 +1,4 @@
-#version 330 core
+#version 430 core
 out vec4 frag_color;
 in vec2 tex_coord;
 
@@ -31,11 +31,10 @@ void main()
     uv += pixel_size * pos;
     // ...and now, one frame
     uv *= frame_size;
-    
     grid_uv *= frame_size;
     grid_uv.x += mod(grid_uv.y, pixel_size.y * 16) > pixel_size.y * 8 ? pixel_size.x * 8 : 0;
     float grid_state = float(mod(grid_uv.x, pixel_size.x * 16.0) > pixel_size.x * 8);
     vec3 grid_col = grid_state > 0 ? GRID_COL1 : GRID_COL2;
     vec4 tex_col = texture2D(texture, uv);
-    frag_color = tex_col.a == 0.0 ? vec4(grid_col, 1.0) : tex_col;
+    frag_color = tex_col.a <= 0.0 ? vec4(grid_col, 1.0) : mix(vec4(grid_col,1.0), tex_col, vec4(tex_col.a));
 }
