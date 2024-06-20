@@ -1,5 +1,7 @@
 use std::{
+    cell::RefCell,
     path::{Path, PathBuf},
+    rc::Rc,
     sync::Arc,
 };
 
@@ -8,17 +10,22 @@ use bevy_math::IVec2;
 use eframe::glow::{self, Context, HasContext, NativeTexture};
 use pixas::bitmap::Bitmap;
 
+#[derive(Debug, Clone, Copy)]
+pub struct Inner {
+    pub native: NativeTexture,
+    pub width: i32,
+    pub height: i32,
+}
+
 #[derive(Debug, Clone)]
 pub struct Texture {
-    native: Arc<NativeTexture>,
-    width: i32,
-    height: i32,
+    inner: Rc<RefCell<Inner>>,
     path: Option<PathBuf>,
 }
 
 impl Texture {
     pub fn delete(&self, gl: &eframe::glow::Context) {
-        unsafe { gl.delete_texture(NativeTexture(self.native.0)) };
+        unsafe { gl.delete_texture(NativeTexture(self.inner.borrow().native.0)) };
     }
     #[allow(dead_code)]
     pub fn with_size(gl: &Context, size: IVec2) -> Result<Self> {
@@ -43,9 +50,11 @@ impl Texture {
                 None,
             );
             Ok(Self {
-                width: size.x,
-                height: size.y,
-                native: Arc::new(texture),
+                inner: Rc::new(RefCell::new(Inner {
+                    width: size.x,
+                    height: size.y,
+                    native: texture,
+                })),
                 path: None,
             })
         }
@@ -82,28 +91,33 @@ impl Texture {
             gl.texture_parameter_i32(texture, glow::TEXTURE_MIN_FILTER, glow::NEAREST as i32);
             gl.texture_parameter_i32(texture, glow::TEXTURE_MAG_FILTER, glow::NEAREST as i32);
             Ok(Self {
-                width: bitmap.width as i32,
-                height: bitmap.height as i32,
-                native: Arc::new(texture),
+                inner: Rc::new(RefCell::new(Inner {
+                    width: bitmap.width as i32,
+                    height: bitmap.height as i32,
+                    native: texture,
+                })),
                 path: Some(path.as_ref().to_owned()),
             })
         }
     }
-
     pub fn width(&self) -> i32 {
-        self.width
+        self.inner.borrow().width
     }
 
     pub fn height(&self) -> i32 {
-        self.height
+        self.inner.borrow().height
     }
 
-    pub fn native_arc(&self) -> Arc<NativeTexture> {
-        self.native.clone()
+    pub fn inner_rc(&self) -> Rc<RefCell<Inner>> {
+        self.inner.clone()
+    }
+
+    pub fn inner(&self) -> Inner {
+        *self.inner.borrow()
     }
 
     pub fn native(&self) -> NativeTexture {
-        NativeTexture(self.native.0)
+        NativeTexture(self.inner.borrow().native.0)
     }
 
     pub fn path(&self) -> Option<&PathBuf> {

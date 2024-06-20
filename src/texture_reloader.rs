@@ -1,29 +1,30 @@
 use std::{
+    cell::RefCell,
     path::{Path, PathBuf},
+    rc::Rc,
     sync::Arc,
 };
 
-use eframe::glow::{HasContext, NativeTexture};
 use crate::file_utils::Ms;
+use eframe::glow::{HasContext, NativeTexture};
 
 use crate::{file_utils::file_modified_time, texture::Texture};
 
 struct TextureData {
-    handle: Arc<NativeTexture>,
+    inner: Rc<RefCell<crate::texture::Inner>>,
     path: PathBuf,
     modified_time: Ms,
 }
 
 impl TextureData {
-    fn new(handle: Arc<NativeTexture>, path: PathBuf, modified_time: Ms) -> Self {
+    fn new(inner: Rc<RefCell<crate::texture::Inner>>, path: PathBuf, modified_time: Ms) -> Self {
         Self {
-            handle,
+            inner: inner.clone(),
             path,
             modified_time,
         }
     }
 }
-
 
 pub struct TextureReloader {
     textures: Vec<TextureData>,
@@ -42,7 +43,7 @@ impl TextureReloader {
             return;
         };
         self.textures.push(TextureData::new(
-            texture.native_arc().clone(),
+            texture.inner_rc().clone(),
             path.clone(),
             modified_time,
         ));
@@ -57,14 +58,14 @@ impl TextureReloader {
             if new_modified_time == old_modified_time {
                 continue;
             }
-            unsafe { gl.delete_texture(NativeTexture(texture.handle.0)) };
+            unsafe { gl.delete_texture(NativeTexture(texture.inner.borrow().native.0)) };
             let Ok(new_texture) = Texture::from_path(gl, &texture.path) else {
                 continue;
             };
-            let Some(handle) = Arc::get_mut(&mut texture.handle) else {
-                continue;
-            };
-            *handle = new_texture.native();
+            let mut inner = texture.inner.borrow_mut();
+            inner.native = new_texture.native();
+            inner.width = new_texture.width();
+            inner.height = new_texture.height();
         }
     }
 }

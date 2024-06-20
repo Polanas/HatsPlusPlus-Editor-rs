@@ -23,18 +23,14 @@ struct Uniforms {
     current_frame: f32,
 }
 
-fn draw_texture(gl: &Context, texture: Texture, shader: Shader, uniforms: Uniforms) {
+fn draw_texture(gl: &Context, texture: crate::texture::Inner, shader: Shader, uniforms: Uniforms) {
     let vertex_array = VERTEX_ARRAY.read().unwrap().unwrap();
-    let frames_amount = vec2(
-        texture.width() as f32 / uniforms.frame_size.x,
-        texture.height() as f32 / uniforms.frame_size.y,
-    );
     unsafe {
         shader.activate(gl);
         shader.set_f32(gl, "current_frame", uniforms.current_frame);
         shader.set_vec2(gl, "frame_size", uniforms.frame_size);
         shader.set_vec2(gl, "frames_amount", uniforms.frames_amount);
-        gl.bind_texture(glow::TEXTURE_2D, Some(texture.native()));
+        gl.bind_texture(glow::TEXTURE_2D, Some(texture.native));
         gl.bind_vertex_array(Some(vertex_array));
         gl.draw_arrays(glow::TRIANGLES, 0, 6);
     }
@@ -90,15 +86,11 @@ impl AnimationWindow {
                     ),
                     frame_size: Vec2::new(data.frame_size.x as f32, data.frame_size.y as f32),
                 };
+                let inner = data.texture.clone().inner();
                 let callback = eframe::egui::PaintCallback {
                     rect,
                     callback: Arc::new(egui_glow::CallbackFn::new(move |_, painter| {
-                        draw_texture(
-                            painter.gl(),
-                            data.texture.clone(),
-                            data.shader.clone(),
-                            uniforms,
-                        )
+                        draw_texture(painter.gl(), inner, data.shader.clone(), uniforms)
                     })),
                 };
                 ui.painter().add(callback);

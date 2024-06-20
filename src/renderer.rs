@@ -183,16 +183,17 @@ impl Renderer {
                 focusable: false,
             },
         );
+        let inner = texture.clone().inner();
         let callback = eframe::egui::PaintCallback {
             rect,
             callback: Arc::new(egui_glow::CallbackFn::new(move |_, painter| {
-                Renderer::draw_texture_gl(texture.clone(), painter.gl(), shader.clone())
+                Renderer::draw_texture_gl(inner, painter.gl(), shader.clone())
             })),
         };
         ui.painter().add(callback);
     }
 
-    fn draw_texture_gl(screen: Texture, gl: &Context, shader: Shader) {
+    fn draw_texture_gl(screen: crate::texture::Inner, gl: &Context, shader: Shader) {
 
     }
 
