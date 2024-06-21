@@ -30,11 +30,11 @@ extern crate num_derive;
 
 use anyhow::{bail, Result};
 use eframe::egui::{
-    vec2, Button, CollapsingHeader, FontDefinitions, Id, KeyboardShortcut, RichText,
+    vec2, Button, CentralPanel, CollapsingHeader, FontDefinitions, Id, KeyboardShortcut, RichText,
     ViewportBuilder,
 };
-use eframe::glow;
 use eframe::glow::NativeBuffer;
+use eframe::glow::{self, SAMPLE_ALPHA_TO_COVERAGE};
 use eframe::{
     egui::{self, Ui},
     glow::{Context, HasContext, NativeVertexArray},
@@ -94,7 +94,17 @@ impl AppConfig {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub enum AnimationWindowAction {
+    #[default]
+    None,
+    Pause,
+    IncreaseFrame,
+    DecreaseFrame,
+}
+
 pub struct FrameData<'a> {
+    anim_window_action: AnimationWindowAction,
     gl: &'a Context,
     shader: Shader,
     time: f32,
@@ -111,6 +121,7 @@ impl<'a> FrameData<'a> {
         hertz: u32,
         ui_text: Rc<UiText>,
         config: &'a mut AppConfig,
+        anim_window_action: AnimationWindowAction,
     ) -> Self {
         Self {
             config,
@@ -119,6 +130,7 @@ impl<'a> FrameData<'a> {
             time,
             hertz,
             ui_text,
+            anim_window_action,
         }
     }
 }
@@ -239,7 +251,9 @@ impl MyEguiApp {
                         let _ = self.open_hat(gl, &path);
                     }
                 }
-                if egui_utils::red_button(ui, "Clear", self.config.is_light_theme()).clicked() {
+                if !self.config.latest_hats.is_empty()
+                    && egui_utils::red_button(ui, "Clear", self.config.is_light_theme()).clicked()
+                {
                     Rc::get_mut(&mut self.config).unwrap().latest_hats.clear();
                 }
             });
@@ -595,6 +609,17 @@ impl MyEguiApp {
             }
         });
     }
+    fn animation_window_action(ui: &mut Ui) -> AnimationWindowAction {
+        if ui.shortcut_pressed(shortcuts::PAUSE) {
+            AnimationWindowAction::Pause
+        } else if ui.shortcut_pressed(shortcuts::DECREASE_FRAME) {
+            AnimationWindowAction::DecreaseFrame
+        } else if ui.shortcut_pressed(shortcuts::INCREASE_FRAME) {
+            AnimationWindowAction::IncreaseFrame
+        } else {
+            AnimationWindowAction::None
+        }
+    }
 }
 
 impl eframe::App for MyEguiApp {
@@ -612,6 +637,7 @@ impl eframe::App for MyEguiApp {
                 self.draw_hat_menu(ctx, gl, ui);
             });
             self.show_hidden_page(ui);
+            let anim_window_action = MyEguiApp::animation_window_action(ui);
             self.tabs.ui(
                 ui,
                 FrameData::new(
@@ -621,6 +647,7 @@ impl eframe::App for MyEguiApp {
                     self.hertz,
                     self.ui_text.clone(),
                     Rc::get_mut(&mut self.config).unwrap(),
+                    anim_window_action,
                 ),
             );
             self.execute_shortcuts(gl, ui);

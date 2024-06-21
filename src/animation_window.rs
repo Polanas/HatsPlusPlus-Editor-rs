@@ -5,7 +5,7 @@ use eframe::egui::{Button, CollapsingHeader, DragValue, Id, ImageButton, Ui, Win
 use eframe::glow::Context;
 use eframe::glow::{self, HasContext};
 
-use crate::{animation, egui_utils};
+use crate::{animation, egui_utils, AnimationWindowAction};
 use crate::{animation::Animation, shader::Shader, texture::Texture, VERTEX_ARRAY};
 
 const DUCK_GAME_HERTZ: f32 = 60.0;
@@ -46,6 +46,7 @@ pub struct AnimationWindowFrameData<'a> {
     pub texture: Texture,
     pub frame_size: IVec2,
     pub hat_name: String,
+    pub anim_window_action: AnimationWindowAction,
 }
 
 impl AnimationWindow {
@@ -68,7 +69,7 @@ impl AnimationWindow {
         Window::new(data.hat_name)
             .id(Id::new(data.texture.path().unwrap()))
             .resizable(false)
-            .max_width(data.texture.width() as f32 * data.ui.ctx().pixels_per_point())
+            .max_width(data.frame_size.x as f32 * 5.0)
             .show(data.ui.ctx(), |ui| {
                 CollapsingHeader::new("Animations").show(ui, |ui| {
                     for (i, anim) in data.animations.iter().enumerate() {
@@ -125,7 +126,12 @@ impl AnimationWindow {
                     if ui
                         .add(Button::new("⬅").min_size(eframe::egui::Vec2::splat(22.0)))
                         .clicked()
+                        || matches!(
+                            data.anim_window_action,
+                            AnimationWindowAction::DecreaseFrame
+                        )
                     {
+                        self.paused = true;
                         self.current_frame_index = self
                             .current_frame_index
                             .checked_sub(1)
@@ -138,13 +144,19 @@ impl AnimationWindow {
                     if ui
                         .add(Button::new(pause_icon).min_size(eframe::egui::Vec2::splat(22.0)))
                         .clicked()
+                        || matches!(data.anim_window_action, AnimationWindowAction::Pause)
                     {
                         self.paused = !self.paused;
                     }
                     if ui
                         .add(Button::new("➡").min_size(eframe::egui::Vec2::splat(22.0)))
                         .clicked()
+                        || matches!(
+                            data.anim_window_action,
+                            AnimationWindowAction::IncreaseFrame
+                        )
                     {
+                        self.paused = true;
                         self.current_frame_index += 1;
                     }
                 });

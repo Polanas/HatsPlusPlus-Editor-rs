@@ -38,6 +38,14 @@ macro_rules! impl_abstract_hat {
             fn animations(&self) -> Option<&[Animation]> {
                 Some(&self.$($anims_name).+[..])
             }
+            fn frames_amount(&self) -> u32 {
+                let frames_x = (self.texture().map(|t| t.width()).unwrap_or(0)) / self.base().frame_size.x;
+                let frames_y = (self.texture().map(|t| t.height()).unwrap_or(0)) / self.base().frame_size.y;
+                (frames_x * frames_y) as u32
+            }
+            fn animations_mut(&mut self) -> Option<&mut [Animation]> {
+                Some(&mut self.$($anims_name).+[..])
+            }
         }
     };
     ($t:ty, $base_name:ident) => {
@@ -52,6 +60,14 @@ macro_rules! impl_abstract_hat {
                 self.$base_name.texture.as_ref()
             }
             fn animations(&self) -> Option<&[Animation]> {
+                None
+            }
+            fn frames_amount(&self) -> u32 {
+                let frames_x = (self.texture().map(|t| t.width()).unwrap_or(0)) / self.base().frame_size.x;
+                let frames_y = (self.texture().map(|t| t.height()).unwrap_or(0)) / self.base().frame_size.y;
+                (frames_x * frames_y) as u32
+            }
+            fn animations_mut(&mut self) -> Option<&mut [Animation]> {
                 None
             }
         }
@@ -80,6 +96,8 @@ pub trait AbstractHat: Downcast + std::fmt::Debug {
     fn base_mut(&mut self) -> &mut HatBase;
     fn texture(&self) -> Option<&Texture>;
     fn animations(&self) -> Option<&[Animation]>;
+    fn animations_mut(&mut self) -> Option<&mut [Animation]>;
+    fn frames_amount(&self) -> u32;
 }
 
 pub trait GetHatBase {

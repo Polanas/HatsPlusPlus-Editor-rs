@@ -3,10 +3,14 @@ use std::sync::{Arc, Mutex};
 use std::cell::RefCell;
 
 use color_eyre::owo_colors::OwoColorize;
-use eframe::egui::{self, Button, Color32, Grid, Id, Layout, RichText, Vec2};
+use eframe::egui::scroll_area::ScrollBarVisibility;
+use eframe::egui::{
+    self, Button, CentralPanel, Color32, Grid, Id, Layout, RichText, ScrollArea, Vec2,
+};
 
 use eframe::egui::{DragValue, Ui};
 use egui_dock::{DockArea, DockState, NodeIndex, SurfaceIndex, TabViewer};
+use num_traits::ToPrimitive;
 
 use crate::animation::Animation;
 use crate::animation_window::{AnimationWindow, AnimationWindowFrameData};
@@ -163,63 +167,49 @@ impl MyTabViewer<'_> {
         // self.
     }
     fn draw_wereable_hat_ui(&mut self, ui: &mut Ui, hat: &mut WereableHat) {
-        let Some(texture) = hat.texture().cloned() else {
-            return;
-        };
-        // let frame_size = hat.base().frame_size;
-        // let shader = self.frame_data.shader.clone();
-        // let (rect, _) = ui.allocate_exact_size(
-        //     egui::Vec2::new(frame_size.x as f32 * 5.0, frame_size.y as f32 * 5.0),
-        //     egui::Sense {
-        //         click: false,
-        //         drag: false,
-        //         focusable: false,
-        //     },
-        // );
-        // let time = self.frame_data.time;
-        // let callback = egui::PaintCallback {
-        //     rect,
-        //     callback: Arc::new(egui_glow::CallbackFn::new(move |_, painter| {
-        //         draw_texture(
-        //             painter.gl(),
-        //             texture.clone(),
-        //             frame_size,
-        //             shader.clone(),
-        //             time,
-        //         )
-        //     })),
-        // };
-        // ui.painter().add(callback);
-
-        ui.heading("Wereable hat")
-            .on_hover_text("This a wereable hat.\nIt can do stuff.");
-        ui.horizontal(|ui| {
-            ui.label("X:");
-            ui.add(
-                DragValue::new(&mut hat.base.frame_size.x)
-                    .speed(0.2)
-                    .clamp_range(32..=64),
-            );
-            ui.label("Y:");
-            ui.add(DragValue::new(&mut hat.base.frame_size.y).clamp_range(32..=64));
-            ui.label("Frame size");
-        });
-        egui::ComboBox::from_label("Quack Frame Link State")
-            .selected_text(format!("{}", hat.link_frame_state))
-            .show_ui(ui, |ui| {
-                ui.selectable_value(&mut hat.link_frame_state, LinkFrameState::Default, "None");
-                ui.selectable_value(&mut hat.link_frame_state, LinkFrameState::Saved, "Saved");
-                ui.selectable_value(
-                    &mut hat.link_frame_state,
-                    LinkFrameState::Inverted,
-                    "Inverted",
-                );
+        ScrollArea::new([true, true])
+            .drag_to_scroll(false)
+            .show(ui, |ui| {
+                ui.allocate_space((ui.available_width(), 1.0).into());
+                ui.heading("Wereable hat")
+                    .on_hover_text("This a wereable hat.\nIt can do stuff.");
+                ui.horizontal(|ui| {
+                    ui.label("X:");
+                    ui.add(
+                        DragValue::new(&mut hat.base.frame_size.x)
+                            .speed(0.2)
+                            .clamp_range(32..=64),
+                    );
+                    ui.label("Y:");
+                    ui.add(DragValue::new(&mut hat.base.frame_size.y).clamp_range(32..=64));
+                    ui.label("Frame size");
+                });
+                egui::ComboBox::from_label("Quack Frame Link State")
+                    .selected_text(format!("{}", hat.link_frame_state))
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(
+                            &mut hat.link_frame_state,
+                            LinkFrameState::Default,
+                            "None",
+                        );
+                        ui.selectable_value(
+                            &mut hat.link_frame_state,
+                            LinkFrameState::Saved,
+                            "Saved",
+                        );
+                        ui.selectable_value(
+                            &mut hat.link_frame_state,
+                            LinkFrameState::Inverted,
+                            "Inverted",
+                        );
+                    });
+                self.draw_animations_ui(hat as &mut dyn AbstractHat, ui);
             });
-        self.draw_animations_ui(ui, &mut hat.animations);
     }
 
-    fn draw_animations_ui(&mut self, ui: &mut Ui, animations: &mut [Animation]) {
-        for anim in animations {
+    fn draw_animations_ui(&mut self, hat: &mut dyn AbstractHat, ui: &mut Ui) {
+        let frames_amount = hat.frames_amount();
+        for anim in hat.animations_mut().unwrap_or_default() {
             egui::CollapsingHeader::new(anim.anim_type.to_string()).show(ui, |ui| {
                 Grid::new("grid").show(ui, |ui| {
                     ui.label("Delay");
@@ -237,10 +227,29 @@ impl MyTabViewer<'_> {
                     ui.label("Looping");
                     ui.checkbox(&mut anim.looping, "");
                 });
-                //show frames
+                let mut delete_frame_index = None;
+                egui_dnd::dnd(ui, "my_dnd").show_vec(
+                    &mut anim.frames,
+                    |ui, item, handle, state| {
+                        ui.horizontal(|ui| {
+                            handle.ui(ui, |ui| {
+                                ui.label(item.to_string());
+                                if ui.button("X").clicked() {
+                                    delete_frame_index = Some(state.index);
+                                }
+                            });
+                        });
+                    },
+                );
+                if let Some(index) = delete_frame_index {
+                    anim.frames.remove(index);
+                }
+
                 ui.horizontal(|ui| {
                     ui.add(egui::DragValue::new(&mut anim.new_frame)).changed();
-                    if ui.button("Add Frame").clicked() {
+                    if ui.button("Add Frame").clicked()
+                        && (0..frames_amount).contains(&anim.new_frame.to_u32().unwrap_or(0))
+                    {
                         anim.frames.push(anim.new_frame);
                         anim.new_frame += 1;
                     }
@@ -381,6 +390,7 @@ impl TabViewer for MyTabViewer<'_> {
                         texture,
                         frame_size,
                         hat_name,
+                        anim_window_action: self.frame_data.anim_window_action,
                     });
                 }
             }
@@ -407,8 +417,11 @@ impl TabViewer for MyTabViewer<'_> {
 
     fn on_close(&mut self, tab: &mut Self::Tab) -> bool {
         let hat = &mut tab.inner.borrow_mut().hat;
+        let latest_hats = &mut self.frame_data.config.latest_hats;
         if let Some(path) = &hat.path {
-            self.frame_data.config.latest_hats.push(path.clone());
+            if !latest_hats.iter().any(|p| p == path) {
+                latest_hats.push(path.clone());
+            }
         }
         hat.delete_textures(self.frame_data.gl);
         true
