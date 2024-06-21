@@ -5,13 +5,14 @@ use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 
 use crate::animation::{Animation, AnimationType};
+use crate::file_utils::FileStemString;
 use crate::hat_utils::*;
 use crate::metapixels::Metapixels;
+use crate::prelude::*;
 use crate::tabs::SelectedHat;
 use crate::texture::Texture;
 use crate::texture_reloader::TextureReloader;
 use crate::ui_text::UiText;
-use crate::{prelude::*, FileStemString};
 use anyhow::{bail, Result};
 use bevy_math::IVec2;
 use derivative::Derivative;

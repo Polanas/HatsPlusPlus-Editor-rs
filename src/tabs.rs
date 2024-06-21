@@ -264,6 +264,7 @@ impl MyTabViewer<'_> {
                 }
                 let config = &self.frame_data.config;
                 if egui_utils::red_button(ui, "Delete", config.is_light_theme()).clicked() {
+                    println!("anim was deleted");
                     //do stuff
                 }
             });
@@ -404,8 +405,11 @@ impl TabViewer for MyTabViewer<'_> {
         self.added_nodes.push((surface, node))
     }
 
-    fn on_close(&mut self, _tab: &mut Self::Tab) -> bool {
-        let hat = &mut _tab.inner.borrow_mut().hat;
+    fn on_close(&mut self, tab: &mut Self::Tab) -> bool {
+        let hat = &mut tab.inner.borrow_mut().hat;
+        if let Some(path) = &hat.path {
+            self.frame_data.config.latest_hats.push(path.clone());
+        }
         hat.delete_textures(self.frame_data.gl);
         true
     }

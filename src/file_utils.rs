@@ -12,3 +12,16 @@ pub fn file_modified_time(path: impl AsRef<Path>) -> Option<Ms> {
         .ok()?
         .as_millis()))
 }
+
+pub trait FileStemString {
+    fn file_stem_string(&self) -> Option<String>;
+}
+
+impl<T: AsRef<Path>> FileStemString for T {
+    fn file_stem_string(&self) -> Option<String> {
+        self.as_ref()
+            .file_stem()
+            .and_then(|p| p.to_str())
+            .map(|p| p.to_string())
+    }
+}

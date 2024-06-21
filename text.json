@@ -1,5 +1,6 @@
 {
     "en": {
+        "Recent": "Recent",
         "Home": "Home",
         "Welcome": "Welcome to HatsPlusPlus Editor app!",
         "This app": "This app is designed to create hats for the ",
@@ -83,6 +84,7 @@
         "Other": "Другое",
         "Hat": "Шапка",
         "Home": "Домашняя страница",
-        "Open Home": "Открыть домашнюю страницу"
+        "Open Home": "Открыть домашнюю страницу",
+        "Recent": "Недавние"
     }
 }

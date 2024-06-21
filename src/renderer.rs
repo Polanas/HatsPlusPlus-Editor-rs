@@ -10,9 +10,10 @@ use eframe::glow::{
 use eframe::{egui::Color32, glow::Context};
 use pixas::{bitmap::Bitmap, pixel::Pixel};
 
+use crate::file_utils::FileStemString;
 use crate::shader::Shader;
+use crate::sprite::Sprite;
 use crate::texture::Texture;
-use crate::{sprite::Sprite, FileStemString};
 
 trait ToColor32 {
     fn to_color32(&self) -> Color32;
@@ -193,9 +194,7 @@ impl Renderer {
         ui.painter().add(callback);
     }
 
-    fn draw_texture_gl(screen: crate::texture::Inner, gl: &Context, shader: Shader) {
-
-    }
+    fn draw_texture_gl(screen: crate::texture::Inner, gl: &Context, shader: Shader) {}
 
     fn draw_to_texture(&mut self, gl: &Context) {
         let render_data = render_data(gl);

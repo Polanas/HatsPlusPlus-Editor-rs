@@ -3,9 +3,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
 mod animation;
-mod egui_utils;
 mod animation_window;
 mod colors;
+mod egui_utils;
 mod event_bus;
 mod file_utils;
 mod frames_from_range;
@@ -30,7 +30,8 @@ extern crate num_derive;
 
 use anyhow::{bail, Result};
 use eframe::egui::{
-    vec2, Button, CollapsingHeader, FontDefinitions, Id, KeyboardShortcut, ViewportBuilder,
+    vec2, Button, CollapsingHeader, FontDefinitions, Id, KeyboardShortcut, RichText,
+    ViewportBuilder,
 };
 use eframe::glow;
 use eframe::glow::NativeBuffer;
@@ -39,12 +40,14 @@ use eframe::{
     glow::{Context, HasContext, NativeVertexArray},
     NativeOptions,
 };
+use file_utils::FileStemString;
 use hats::{Hat, LoadHat, WereableHat};
+use num_traits::CheckedSub;
 use renderer::{Renderer, ScreenUpdate};
 use serde::{Deserialize, Serialize};
 use shader::Shader;
 use shader_reloader::ShaderReloader;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::RwLock;
 use std::time::SystemTime;
@@ -75,18 +78,19 @@ impl Theme {
     }
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug, Copy)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct AppConfig {
     pub language: Language,
     pub theme: Theme,
+    pub latest_hats: Vec<PathBuf>,
 }
 
 impl AppConfig {
     pub fn is_light_theme(&self) -> bool {
-        match self.theme {
-            Theme::Latte => true,
-            _ => false,
-        }
+        matches!(self.theme, Theme::Latte)
+    }
+    pub fn remove_invalid_latest(&mut self) {
+        self.latest_hats.retain(|path| path.exists());
     }
 }
 
@@ -96,7 +100,7 @@ pub struct FrameData<'a> {
     time: f32,
     hertz: u32,
     ui_text: Rc<UiText>,
-    config: AppConfig,
+    config: &'a mut AppConfig,
 }
 
 impl<'a> FrameData<'a> {
@@ -106,7 +110,7 @@ impl<'a> FrameData<'a> {
         time: f32,
         hertz: u32,
         ui_text: Rc<UiText>,
-        config: AppConfig,
+        config: &'a mut AppConfig,
     ) -> Self {
         Self {
             config,
@@ -116,19 +120,6 @@ impl<'a> FrameData<'a> {
             hertz,
             ui_text,
         }
-    }
-}
-
-trait FileStemString {
-    fn file_stem_string(&self) -> Option<String>;
-}
-
-impl<T: AsRef<Path>> FileStemString for T {
-    fn file_stem_string(&self) -> Option<String> {
-        self.as_ref()
-            .file_stem()
-            .and_then(|p| p.to_str())
-            .map(|p| p.to_string())
     }
 }
 
@@ -229,6 +220,29 @@ impl MyEguiApp {
                 self.save_hat_as();
                 ui.close_menu()
             }
+            ui.collapsing(text.get("Recent"), |ui| {
+                let mut recent_hat_path = None;
+                for path in self.config.latest_hats.iter().rev() {
+                    if !path.exists() {
+                        continue;
+                    }
+                    let Some(name) = path.file_stem_string() else {
+                        continue;
+                    };
+                    if ui.button(name).clicked() {
+                        recent_hat_path = Some(path.clone());
+                        ui.close_menu();
+                    }
+                }
+                if let Some(path) = recent_hat_path {
+                    if self.config.latest_hats.iter().any(|p| *p == path) {
+                        let _ = self.open_hat(gl, &path);
+                    }
+                }
+                if egui_utils::red_button(ui, "Clear", self.config.is_light_theme()).clicked() {
+                    Rc::get_mut(&mut self.config).unwrap().latest_hats.clear();
+                }
+            });
         });
 
         ui.menu_button(text.get("Elements"), |ui| {
@@ -330,6 +344,17 @@ impl MyEguiApp {
     }
 
     fn open_hat(&mut self, gl: &Context, dir_path: impl AsRef<Path>) -> Result<()> {
+        if self.tabs.dock_state.iter_all_tabs().any(|t| {
+            t.1.inner
+                .borrow()
+                .hat
+                .path
+                .as_ref()
+                .map(|p| p == dir_path.as_ref())
+                .unwrap_or_default()
+        }) {
+            bail!("hat with the same path is already opened");
+        }
         let hat = Hat::load(dir_path, gl)?;
         let selected_hat = hat
             .first_element()
@@ -428,7 +453,7 @@ impl MyEguiApp {
     }
 
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        let config: AppConfig = match cc
+        let mut config: AppConfig = match cc
             .egui_ctx
             .memory_mut(|memory| memory.data.get_persisted(Id::NULL))
         {
@@ -437,13 +462,15 @@ impl MyEguiApp {
                 let config = AppConfig {
                     language: Language::English,
                     theme: Theme::Mocha,
+                    latest_hats: vec![],
                 };
                 cc.egui_ctx.memory_mut(|memory| {
-                    memory.data.insert_persisted(Id::NULL, config);
+                    memory.data.insert_persisted(Id::NULL, config.clone());
                 });
                 config
             }
         };
+        config.remove_invalid_latest();
         let mut fonts = egui::FontDefinitions::default();
         fonts.font_data.insert(
             "Caskaydia".to_owned(),
@@ -510,8 +537,22 @@ impl MyEguiApp {
     }
 
     fn on_close(&mut self, ctx: &egui::Context) {
+        {
+            let config = Rc::get_mut(&mut self.config).unwrap();
+            for (_, tab) in self.tabs.dock_state.iter_all_tabs() {
+                let hat = &tab.inner.borrow().hat;
+                if let Some(path) = &hat.path {
+                    if !config.latest_hats.iter().any(|p| p == path) {
+                        config.latest_hats.push(path.to_owned());
+                    }
+                }
+            }
+            config.remove_invalid_latest();
+        }
         ctx.memory_mut(|memory| {
-            memory.data.insert_persisted(Id::NULL, *self.config);
+            memory
+                .data
+                .insert_persisted(Id::NULL, (*self.config).clone());
         });
     }
 
@@ -521,7 +562,9 @@ impl MyEguiApp {
         ctx.request_repaint();
         ctx.set_pixels_per_point(1.5);
         self.texture_reloader.try_reload(gl);
-        self.shader_reloader.try_reload(gl);
+        if cfg!(debug_assertions) {
+            self.shader_reloader.try_reload(gl);
+        }
         Rc::get_mut(&mut self.ui_text).unwrap().language = self.config.language;
     }
 
@@ -577,7 +620,7 @@ impl eframe::App for MyEguiApp {
                     self.time,
                     self.hertz,
                     self.ui_text.clone(),
-                    *self.config,
+                    Rc::get_mut(&mut self.config).unwrap(),
                 ),
             );
             self.execute_shortcuts(gl, ui);
