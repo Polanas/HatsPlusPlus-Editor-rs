@@ -11,7 +11,7 @@ use crate::{animation_window, animations, hats, prelude::*};
 
 use eframe::egui::{DragValue, Ui};
 use egui_dock::{DockArea, DockState, NodeIndex, SurfaceIndex, TabViewer};
-use num_traits::ToPrimitive;
+use num_traits::{Saturating, SaturatingSub, ToPrimitive};
 
 use crate::animation_window::{AnimationWindow, AnimationWindowFrameData};
 use crate::event_bus::EventBus;
@@ -216,7 +216,7 @@ impl MyTabViewer<'_> {
                         ui.push_id(item.id().0, |ui| {
                             ui.horizontal(|ui| {
                                 handle.ui(ui, |ui| {
-                                    ui.label(item.value.to_string());
+                                    ui.label((item.value + 1).to_string());
                                     if ui.button("+").clicked() {
                                         add_frame_index = Some(state.index);
                                     }
@@ -238,9 +238,9 @@ impl MyTabViewer<'_> {
                 ui.horizontal(|ui| {
                     ui.add(egui::DragValue::new(&mut anim.new_frame)).changed();
                     if ui.button("Add Frame").clicked()
-                        && (0..frames_amount).contains(&anim.new_frame.to_u32().unwrap_or(0))
+                        && (0..(frames_amount - 1)).contains(&anim.new_frame.to_u32().unwrap_or(0))
                     {
-                        anim.frames.push(anim.new_frame.into());
+                        anim.frames.push((anim.new_frame - 1).into());
                         anim.new_frame += 1;
                     }
                 });
@@ -255,7 +255,9 @@ impl MyTabViewer<'_> {
                         .changed();
                     ui.label(" ");
                     if ui.button("Set Frame Range").clicked() {
-                        anim.frames = frames_from_range(anim.new_range_start, anim.new_range_end);
+                        let range_start = (anim.new_range_start - 1).max(0);
+                        let range_end = (anim.new_range_end - 1).clamp(0, frames_amount as i32 - 1);
+                        anim.frames = frames_from_range(range_start, range_end);
                     }
                 });
                 if ui.button("Clear Frames").clicked() {

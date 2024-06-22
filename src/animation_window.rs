@@ -1,18 +1,20 @@
 use std::sync::Arc;
 
 use bevy_math::{vec2, IVec2, Vec2};
-use eframe::egui::{Button, CollapsingHeader, DragValue, Id, ImageButton, Ui, Window};
+use eframe::egui::{Button, CollapsingHeader, DragValue, Id, ImageButton, RichText, Ui, Window};
 use eframe::glow::Context;
 use eframe::glow::{self, HasContext};
-use num_traits::CheckedSub;
 use once_cell::sync::Lazy;
 
+use crate::hats::MAX_FRAME_SIZE;
 use crate::prelude::AnimationType;
-use crate::{animations, egui_utils, AnimationWindowAction};
 use crate::{animations::Animation, shader::Shader, texture::Texture, VERTEX_ARRAY};
+use crate::{egui_utils, AnimationWindowAction};
 
 const DUCK_GAME_HERTZ: f32 = 60.0;
-const DEFAULT_ANIMATION: Lazy<Animation> =
+const MAX_SYMBOL_WIDTH: i32 = 16;
+const TEXTURES_SCALE_FACTOR: f32 = 5.0;
+static DEFAULT_ANIMATION: Lazy<Animation> =
     Lazy::new(|| Animation::new(AnimationType::OnDefault, 1, false, vec![0.into()]));
 
 #[derive(Debug)]
@@ -72,7 +74,6 @@ impl AnimationWindow {
                 .unwrap_or(0)
                 .saturating_sub(1),
         );
-        #[allow(clippy::borrow_interior_mutable_const)]
         let default_animation = &*DEFAULT_ANIMATION;
         let animation = {
             if let Some(anims) = &data.animations {
@@ -86,35 +87,50 @@ impl AnimationWindow {
                 self.update(animation, data.hertz);
             }
         };
-        Window::new(data.hat_name)
+        let frame_screen_width = data.frame_size.x as f32 * TEXTURES_SCALE_FACTOR;
+        let hat_name =
+            if (data.hat_name.len() as i32 * MAX_SYMBOL_WIDTH) as f32 > frame_screen_width {
+                format!(
+                    "{}..",
+                    data.hat_name
+                        .chars()
+                        .take(((frame_screen_width) / MAX_SYMBOL_WIDTH as f32) as usize - 1)
+                        .collect::<String>()
+                )
+            } else {
+                data.hat_name
+            };
+        Window::new(hat_name)
             .id(Id::new(data.texture.path().unwrap()))
             .resizable(false)
-            .max_width(data.frame_size.x as f32 * 5.0)
+            .max_width(data.frame_size.x as f32 * TEXTURES_SCALE_FACTOR)
             .show(data.ui.ctx(), |ui| {
-                CollapsingHeader::new("Animations").show(ui, |ui| {
-                    for (i, anim) in data
-                        .animations
-                        .as_ref()
-                        .map(|a| a.iter())
-                        .unwrap_or_default()
-                        .enumerate()
-                    {
-                        let anim_name = anim.anim_type.to_string();
-                        ui.scope(|ui| {
-                            if i == self.current_anim_index {
-                                let widgets = &mut ui.style_mut().visuals.widgets;
-                                widgets.inactive = widgets.active;
-                            }
-                            if ui.button(anim_name).clicked() {
-                                self.current_anim_index = i;
-                            }
-                        });
-                    }
-                });
+                if data.animations.as_ref().map(|a| a.len()).unwrap_or(0) > 0 {
+                    CollapsingHeader::new("Animations").show(ui, |ui| {
+                        for (i, anim) in data
+                            .animations
+                            .as_ref()
+                            .map(|a| a.iter())
+                            .unwrap_or_default()
+                            .enumerate()
+                        {
+                            let anim_name = anim.anim_type.to_string();
+                            ui.scope(|ui| {
+                                if i == self.current_anim_index {
+                                    let widgets = &mut ui.style_mut().visuals.widgets;
+                                    widgets.inactive = widgets.active;
+                                }
+                                if ui.button(anim_name).clicked() {
+                                    self.current_anim_index = i;
+                                }
+                            });
+                        }
+                    });
+                }
                 let (rect, _) = ui.allocate_exact_size(
                     eframe::egui::Vec2::new(
-                        data.frame_size.x as f32 * 5.0,
-                        data.frame_size.y as f32 * 5.0,
+                        data.frame_size.x as f32 * TEXTURES_SCALE_FACTOR,
+                        data.frame_size.y as f32 * TEXTURES_SCALE_FACTOR,
                     ),
                     eframe::egui::Sense {
                         click: false,
@@ -194,7 +210,7 @@ impl AnimationWindow {
                 ui.vertical_centered(|ui| {
                     ui.label(format!(
                         "Frame {0} / {1}",
-                        self.current_frame_index,
+                        self.current_frame_index + 1,
                         animation.frames.len()
                     ));
                 });

@@ -97,6 +97,7 @@ const WALKING_PET_NAME: &str = "walkingpet";
 const FLYING_PET_NAME: &str = "flyingpet";
 const WINGS_NAME: &str = "wings";
 const MAX_PETS: usize = 5;
+const MAX_EXTRA_HAT_SIZE: IVec2 = IVec2::new(97, 56);
 pub const MIN_FRAME_SIZE: i32 = 32;
 pub const MAX_FRAME_SIZE: i32 = 64;
 
@@ -812,7 +813,7 @@ impl LoadHat for Extra {
                 bitmap: Bitmap::from_path(path.as_ref()).ok(),
                 hat_type: HatType::Extra,
                 path: path.as_ref().to_owned(),
-                frame_size: (MIN_FRAME_SIZE, MIN_FRAME_SIZE).into(),
+                frame_size: MAX_EXTRA_HAT_SIZE,
                 texture: Some(texture),
             },
         };
@@ -1032,11 +1033,11 @@ impl Hat {
             let name_and_size = get_name_and_size(&file_name);
 
             match name_and_size.name.to_lowercase().as_str() {
-                WINGS_NAME => {
-                    if let Ok(wings) =
-                        Wings::load_from_name_and_size(entry.path(), name_and_size, gl)
+                ROOM_NAME => {
+                    if let Ok(room) =
+                        RoomHat::load_from_name_and_size(entry.path(), name_and_size, gl)
                     {
-                        hat.add_unique_hat(HatType::Wings, Box::new(wings));
+                        hat.add_unique_hat(HatType::Room, Box::new(room));
                     }
                 }
                 EXTRA_NAME => {
@@ -1046,18 +1047,11 @@ impl Hat {
                         hat.add_unique_hat(HatType::Extra, Box::new(extra));
                     }
                 }
-                PREVIEW_NAME => {
-                    if let Ok(preview) =
-                        Preview::load_from_name_and_size(entry.path(), name_and_size, gl)
+                WINGS_NAME => {
+                    if let Ok(wings) =
+                        Wings::load_from_name_and_size(entry.path(), name_and_size, gl)
                     {
-                        hat.add_unique_hat(HatType::Preview, Box::new(preview));
-                    }
-                }
-                WEREABLE_NAME => {
-                    if let Ok(wereable) =
-                        Wereable::load_from_name_and_size(entry.path(), name_and_size, gl)
-                    {
-                        hat.add_unique_hat(HatType::Wereable, Box::new(wereable));
+                        hat.add_unique_hat(HatType::Wings, Box::new(wings));
                     }
                 }
                 FLYING_PET_NAME => {
@@ -1074,11 +1068,18 @@ impl Hat {
                         hat.add_pet(Box::new(pet));
                     }
                 }
-                ROOM_NAME => {
-                    if let Ok(room) =
-                        RoomHat::load_from_name_and_size(entry.path(), name_and_size, gl)
+                PREVIEW_NAME => {
+                    if let Ok(preview) =
+                        Preview::load_from_name_and_size(entry.path(), name_and_size, gl)
                     {
-                        hat.add_unique_hat(HatType::Room, Box::new(room));
+                        hat.add_unique_hat(HatType::Preview, Box::new(preview));
+                    }
+                }
+                WEREABLE_NAME => {
+                    if let Ok(wereable) =
+                        Wereable::load_from_name_and_size(entry.path(), name_and_size, gl)
+                    {
+                        hat.add_unique_hat(HatType::Wereable, Box::new(wereable));
                     }
                 }
                 _ => {}
