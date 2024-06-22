@@ -5,11 +5,15 @@ use eframe::egui::{Button, CollapsingHeader, DragValue, Id, ImageButton, Ui, Win
 use eframe::glow::Context;
 use eframe::glow::{self, HasContext};
 use num_traits::CheckedSub;
+use once_cell::sync::Lazy;
 
+use crate::prelude::AnimationType;
 use crate::{animations, egui_utils, AnimationWindowAction};
 use crate::{animations::Animation, shader::Shader, texture::Texture, VERTEX_ARRAY};
 
 const DUCK_GAME_HERTZ: f32 = 60.0;
+const DEFAULT_ANIMATION: Lazy<Animation> =
+    Lazy::new(|| Animation::new(AnimationType::OnDefault, 1, false, vec![0.into()]));
 
 #[derive(Debug)]
 pub struct AnimationWindow {
@@ -43,7 +47,7 @@ pub struct AnimationWindowFrameData<'a> {
     pub ui: &'a Ui,
     pub shader: Shader,
     pub hertz: f32,
-    pub animations: Vec<Animation>,
+    pub animations: Option<Vec<Animation>>,
     pub texture: Texture,
     pub frame_size: IVec2,
     pub hat_name: String,
@@ -62,9 +66,21 @@ impl AnimationWindow {
     pub fn draw(&mut self, data: AnimationWindowFrameData) {
         self.current_anim_index = usize::min(
             self.current_anim_index,
-            data.animations.len().saturating_sub(1),
+            data.animations
+                .as_ref()
+                .map(|a| a.len())
+                .unwrap_or(0)
+                .saturating_sub(1),
         );
-        let animation = data.animations.get(self.current_anim_index);
+        #[allow(clippy::borrow_interior_mutable_const)]
+        let default_animation = &*DEFAULT_ANIMATION;
+        let animation = {
+            if let Some(anims) = &data.animations {
+                anims.get(self.current_anim_index)
+            } else {
+                Some(default_animation)
+            }
+        };
         if let Some(animation) = animation {
             if !self.paused {
                 self.update(animation, data.hertz);
@@ -76,7 +92,13 @@ impl AnimationWindow {
             .max_width(data.frame_size.x as f32 * 5.0)
             .show(data.ui.ctx(), |ui| {
                 CollapsingHeader::new("Animations").show(ui, |ui| {
-                    for (i, anim) in data.animations.iter().enumerate() {
+                    for (i, anim) in data
+                        .animations
+                        .as_ref()
+                        .map(|a| a.iter())
+                        .unwrap_or_default()
+                        .enumerate()
+                    {
                         let anim_name = anim.anim_type.to_string();
                         ui.scope(|ui| {
                             if i == self.current_anim_index {

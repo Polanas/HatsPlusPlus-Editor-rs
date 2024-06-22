@@ -2,8 +2,8 @@
 #![feature(try_blocks)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-mod animations;
 mod animation_window;
+mod animations;
 mod colors;
 mod egui_utils;
 mod event_bus;
@@ -51,7 +51,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::RwLock;
 use std::time::SystemTime;
-use tabs::{SelectedHat, Tab, Tabs};
+use tabs::{Tab, Tabs};
 use texture_reloader::TextureReloader;
 use ui_text::{Language, UiText};
 
@@ -344,12 +344,13 @@ impl MyEguiApp {
                             .button(hat_type.get_display_name(text.as_ref()))
                             .clicked()
                         {
-                            inner.selected_hat_type = SelectedHat::from_hat_type(hat_type, None);
+                            inner.selected_hat_id =
+                                Some(inner.hat.id_from_hat_type(hat_type).unwrap());
                             ui.close_menu();
                             break;
                         }
                     }
-                    for (i, pet) in inner.hat.pets.iter().enumerate() {
+                    for pet in inner.hat.pets.iter() {
                         let size = pet.base().hat_area_size;
                         let button_name = format!(
                             "{0} ({1}, {2})",
@@ -358,7 +359,7 @@ impl MyEguiApp {
                             size.y
                         );
                         if ui.button(button_name).clicked() {
-                            inner.selected_hat_type = Some(SelectedHat::Pet(i));
+                            inner.selected_hat_id = Some(pet.id());
                             ui.close_menu();
                             break;
                         }
@@ -414,9 +415,7 @@ impl MyEguiApp {
             bail!("hat with the same path is already opened");
         }
         let hat = Hat::load(dir_path, gl)?;
-        let selected_hat = hat
-            .first_element()
-            .and_then(|f| SelectedHat::from_hat_type(f.1, Some(&hat.pets[..])));
+        let selected_hat_id = hat.iter_all_elements().next().map(|h| h.id());
         let name = match hat
             .path
             .as_ref()
@@ -437,7 +436,7 @@ impl MyEguiApp {
                 gl,
             ));
         }
-        inner.selected_hat_type = selected_hat;
+        inner.selected_hat_id = selected_hat_id;
         drop(inner);
         self.tabs.dock_state.push_to_focused_leaf(tab);
         Ok(())

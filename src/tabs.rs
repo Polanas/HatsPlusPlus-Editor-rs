@@ -16,7 +16,7 @@ use num_traits::ToPrimitive;
 use crate::animation_window::{AnimationWindow, AnimationWindowFrameData};
 use crate::event_bus::EventBus;
 use crate::frames_from_range::frames_from_range;
-use crate::hats::{AbstractHat, Hat, HatType, LinkFrameState};
+use crate::hats::{AbstractHat, Hat, HatElementId, HatType, LinkFrameState};
 use crate::hats::{Extra, FlyingPet, WalkingPet, Wereable, Wings};
 use crate::renderer::Renderer;
 use crate::{egui_utils, FrameData};
@@ -63,44 +63,13 @@ impl Tabs {
         }
     }
 }
-#[derive(Debug, Clone, Copy)]
-pub enum SelectedHat {
-    Wereable,
-    Extra,
-    Wings,
-    Room,
-    Preview,
-    Pet(usize),
-}
-
-impl SelectedHat {
-    pub fn from_hat_type(value: HatType, pets: Option<&[Box<dyn AbstractHat>]>) -> Option<Self> {
-        match value {
-            HatType::Wereable => Some(Self::Wereable),
-            HatType::Wings => Some(Self::Wings),
-            HatType::Extra => Some(Self::Extra),
-            HatType::Room => Some(Self::Room),
-            HatType::Preview => Some(Self::Preview),
-            HatType::Unspecified => unreachable!(),
-            _ => {
-                let pets = pets?;
-                for (i, pet) in pets.iter().enumerate() {
-                    if pet.base().hat_type == value {
-                        return Some(Self::Pet(i));
-                    }
-                }
-                None
-            }
-        }
-    }
-}
 
 #[derive(Debug)]
 pub struct TabInner {
     pub title: String,
     pub hat: Hat,
     pub is_home_tab: bool,
-    pub selected_hat_type: Option<SelectedHat>,
+    pub selected_hat_id: Option<HatElementId>,
     pub renderer: Option<Renderer>,
     pub animation_window: AnimationWindow,
 }
@@ -116,7 +85,7 @@ impl Tab {
             title,
             hat,
             is_home_tab: false,
-            selected_hat_type: None,
+            selected_hat_id: None,
             renderer: None,
             animation_window: AnimationWindow::new(),
         });
@@ -128,7 +97,7 @@ impl Tab {
             title,
             hat: Hat::default(),
             is_home_tab: true,
-            selected_hat_type: None,
+            selected_hat_id: None,
             renderer: None,
             animation_window: AnimationWindow::new(),
         });
@@ -357,6 +326,23 @@ impl MyTabViewer<'_> {
         ui.label(text.get("Oh, and"));
         new_hat_event
     }
+
+    fn draw_hat_ui(&mut self, selected_hat: &mut &mut dyn AbstractHat, ui: &mut Ui) {
+        match selected_hat.base().hat_type {
+            HatType::Wereable => {
+                self.draw_wereable_hat_ui(ui, selected_hat.downcast_mut().unwrap());
+            }
+            HatType::Wings => self.draw_wings_ui(ui, selected_hat.downcast_mut().unwrap()),
+            HatType::FlyingPet => self.draw_flying_pet_ui(ui, selected_hat.downcast_mut().unwrap()),
+            HatType::WalkingPet => {
+                self.draw_walking_pet_ui(ui, selected_hat.downcast_mut().unwrap())
+            }
+            HatType::Extra => {
+                self.draw_extra_hat_ui(ui, selected_hat.downcast_mut().unwrap());
+            }
+            _ => (),
+        }
+    }
 }
 impl TabViewer for MyTabViewer<'_> {
     type Tab = Tab;
@@ -374,23 +360,19 @@ impl TabViewer for MyTabViewer<'_> {
             }
             return;
         }
-        if inner.selected_hat_type.is_none() && !inner.hat.has_elements() {
-            ui.label("Looks like this has is totaly empty! Maybe add an element or two?");
-            return;
+        if inner.selected_hat_id.is_none() {
+            if !inner.hat.has_elements() {
+                ui.label("Looks like this has is totaly empty! Maybe add an element or two?");
+                return;
+            }
+            let first_id = inner
+                .hat
+                .iter_all_elements()
+                .next()
+                .map(|h| h.id())
+                .unwrap();
+            inner.selected_hat_id = Some(first_id);
         }
-        let selected_hat_type = inner.selected_hat_type.unwrap_or(
-            SelectedHat::from_hat_type(
-                inner
-                    .hat
-                    .iter_all_elements()
-                    .next()
-                    .unwrap()
-                    .base()
-                    .hat_type,
-                Some(&inner.hat.pets),
-            )
-            .unwrap(),
-        );
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 0.0;
             ui.label("Path: ");
@@ -405,44 +387,25 @@ impl TabViewer for MyTabViewer<'_> {
                     .unwrap();
             }
         });
-        match selected_hat_type {
-            //TODO: pets should also get an animation window
-            selected_type if !matches!(selected_type, SelectedHat::Pet(_)) => {
-                //keep calm and call clone, right?
-                if let Some((animations, texture, frame_size)) = inner
-                    .hat
-                    .unique_elemets
-                    .get_mut(&HatType::try_from(selected_type).unwrap())
-                    .and_then(|h| try { (h.animations()?, h.texture()?, h.base().frame_size) })
-                    .map(|t| (t.0.to_vec(), t.1.clone(), t.2))
-                {
-                    let hat_name = inner.title.clone();
-                    inner.animation_window.draw(AnimationWindowFrameData {
-                        ui,
-                        shader: self.frame_data.shader.clone(),
-                        hertz: self.frame_data.hertz as f32,
-                        animations,
-                        texture,
-                        frame_size,
-                        hat_name,
-                        anim_window_action: self.frame_data.anim_window_action,
-                    });
-                }
-            }
-            _ => {}
-        };
-        match selected_hat_type {
-            SelectedHat::Wereable => {
-                if let Some(hat) = &mut inner.hat.wereable_mut() {
-                    self.draw_wereable_hat_ui(ui, hat);
-                }
-            }
-            SelectedHat::Extra => {
-                if let Some(hat) = &mut inner.hat.extra_mut() {
-                    self.draw_extra_hat_ui(ui, hat);
-                }
-            }
-            _ => (),
+        let selected_hat_id = inner.selected_hat_id.unwrap();
+        let hat_name = inner.title.clone();
+        let selected_hat = &mut inner.hat.element_by_id_mut(selected_hat_id).unwrap();
+        let frame_size = selected_hat.base().frame_size;
+        let animations = selected_hat.animations().map(|a| a.to_vec());
+        self.draw_hat_ui(selected_hat, ui);
+
+        if let Some(texture) = selected_hat.texture().cloned() {
+            //keep calm and call clone, right?
+            inner.animation_window.draw(AnimationWindowFrameData {
+                ui,
+                shader: self.frame_data.shader.clone(),
+                hertz: self.frame_data.hertz as f32,
+                animations,
+                texture: texture.clone(),
+                frame_size,
+                hat_name,
+                anim_window_action: self.frame_data.anim_window_action,
+            });
         }
     }
 
