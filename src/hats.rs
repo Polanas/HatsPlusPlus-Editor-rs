@@ -1,4 +1,5 @@
 use core::panic;
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::ops::ControlFlow;
@@ -46,6 +47,9 @@ macro_rules! impl_abstract_hat {
             fn animations_mut(&mut self) -> Option<&mut [Animation]> {
                 Some(&mut self.$($anims_name).+[..])
             }
+            fn id(&self) -> HatElementId {
+                self.base().id
+            }
         }
     };
     ($t:ty, $base_name:ident) => {
@@ -69,6 +73,9 @@ macro_rules! impl_abstract_hat {
             }
             fn animations_mut(&mut self) -> Option<&mut [Animation]> {
                 None
+            }
+            fn id(&self) -> HatElementId {
+                self.base().id
             }
         }
     };
@@ -102,6 +109,19 @@ pub trait HatName: GetHatBase {
 }
 impl HatName for Box<dyn AbstractHat> {}
 
+thread_local! {
+    static HAT_ID_COUNTER: Cell<u32> = Cell::new(0);
+}
+
+pub fn hat_id() -> HatElementId {
+    let id = HAT_ID_COUNTER.get();
+    HAT_ID_COUNTER.set(id + 1);
+    HatElementId(id)
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Default)]
+pub struct HatElementId(u32);
+
 pub trait AbstractHat: Downcast + std::fmt::Debug {
     fn base(&self) -> &HatBase;
     #[allow(dead_code)]
@@ -110,6 +130,7 @@ pub trait AbstractHat: Downcast + std::fmt::Debug {
     fn animations(&self) -> Option<&[Animation]>;
     fn animations_mut(&mut self) -> Option<&mut [Animation]>;
     fn frames_amount(&self) -> u32;
+    fn id(&self) -> HatElementId;
 }
 
 pub trait GetHatBase {
@@ -298,6 +319,7 @@ pub struct HatBase {
     pub bitmap: Option<Bitmap>,
     pub texture: Option<Texture>,
     pub path: PathBuf,
+    pub id: HatElementId,
 }
 
 #[derive(Debug, Default)]
@@ -317,6 +339,7 @@ impl LoadHat for FlyingPet {
         let texture = Texture::from_path(gl, &path)?;
         let mut hat = FlyingPet {
             hat_base: HatBase {
+                id: hat_id(),
                 hat_area_size: size,
                 bitmap: Bitmap::from_path(path.as_ref()).ok(),
                 hat_type: HatType::FlyingPet,
@@ -495,6 +518,7 @@ impl LoadHat for Preview {
         let texture = Texture::from_path(gl, &path)?;
         Ok(Preview {
             base: HatBase {
+                id: hat_id(),
                 hat_type: HatType::Preview,
                 frame_size: (MIN_FRAME_SIZE, MIN_FRAME_SIZE).into(),
                 hat_area_size: (bitmap.width as i32, bitmap.height as i32).into(),
@@ -546,6 +570,7 @@ impl LoadHat for Wings {
         let texture = Texture::from_path(gl, &path)?;
         let mut hat = Wings {
             base: HatBase {
+                id: hat_id(),
                 hat_area_size: size,
                 bitmap: Bitmap::from_path(path.as_ref()).ok(),
                 hat_type: HatType::Wings,
@@ -677,6 +702,7 @@ impl LoadHat for Wereable {
         let (metapixels, size) = get_metapixels_and_size(path.as_ref(), &name_and_size)?;
         let mut hat: Wereable = Wereable {
             base: HatBase {
+                id: hat_id(),
                 hat_area_size: size,
                 bitmap: Bitmap::from_path(path.as_ref()).ok(),
                 hat_type: HatType::Wereable,
@@ -762,6 +788,7 @@ impl LoadHat for RoomHat {
         let texture = Texture::from_path(gl, &path)?;
         let hat = RoomHat {
             base: HatBase {
+                id: hat_id(),
                 hat_area_size: size,
                 bitmap: Bitmap::from_path(path.as_ref()).ok(),
                 hat_type: HatType::Room,
@@ -795,6 +822,7 @@ impl LoadHat for Extra {
         let (metapixels, size) = get_metapixels_and_size(path.as_ref(), &name_and_size)?;
         let mut hat = Extra {
             base: HatBase {
+                id: hat_id(),
                 hat_area_size: size,
                 bitmap: Bitmap::from_path(path.as_ref()).ok(),
                 hat_type: HatType::Extra,
