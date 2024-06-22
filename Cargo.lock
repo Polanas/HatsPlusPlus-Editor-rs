@@ -2000,6 +2000,7 @@ dependencies = [
  "log",
  "num-derive",
  "num-traits",
+ "once_cell",
  "pixas",
  "puffin",
  "raw-window-handle 0.5.2",

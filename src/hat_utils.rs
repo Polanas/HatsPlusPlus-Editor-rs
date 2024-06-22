@@ -52,7 +52,7 @@ pub fn get_animation(metapixels: &[Metapixel], index: usize) -> Option<Animation
     let frames = &metapixels[(index + 3)..]
         .iter()
         .take_while(|m| matches!(m.get_type(), MetapixelType::AnimationFrame))
-        .map(|m| m.g as i32)
+        .map(|m| (m.g as i32).into())
         .collect::<Vec<_>>();
 
     Some(Animation::new(

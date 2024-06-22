@@ -2,7 +2,7 @@
 #![feature(try_blocks)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-mod animation;
+mod animations;
 mod animation_window;
 mod colors;
 mod egui_utils;
@@ -41,7 +41,7 @@ use eframe::{
     NativeOptions,
 };
 use file_utils::FileStemString;
-use hats::{Hat, LoadHat, WereableHat};
+use hats::{AbstractHat, Extra, FlyingPet, Hat, LoadHat, Preview, WalkingPet, Wereable, Wings};
 use num_traits::CheckedSub;
 use renderer::{Renderer, ScreenUpdate};
 use serde::{Deserialize, Serialize};
@@ -279,15 +279,59 @@ impl MyEguiApp {
             return;
         };
         let mut inner = last_tab.inner.borrow_mut();
+        // no FUCKING way this works
+        macro_rules! try_add_hat {
+            ($ui:ident, $get_hat:ident, $hat_type:ident) => {
+                if inner.hat.$get_hat().is_none()
+                    && $ui
+                        .button(hats::HatType::$hat_type.get_display_name(&text))
+                        .clicked()
+                {
+                    if let Some(path) = rfd::FileDialog::new().pick_file() {
+                        if let Ok(hat) = $hat_type::load_from_path(path, gl) {
+                            inner
+                                .hat
+                                .add_unique_hat(hats::HatType::$hat_type, Box::new(hat));
+                            $ui.close_menu();
+                        }
+                    }
+                }
+            };
+        }
         let is_home = inner.is_home_tab;
         ui.add_enabled_ui(!is_home, |ui| {
             ui.collapsing(text.get("Add"), |ui| {
-                if inner.hat.wereable().is_none() && ui.button(text.get("Wereable")).clicked() {
+                try_add_hat!(ui, wereable, Wereable);
+                try_add_hat!(ui, wings, Wings);
+                try_add_hat!(ui, extra, Extra);
+                try_add_hat!(ui, preview, Preview);
+                if inner.hat.preview().is_none()
+                    && ui
+                        .add_enabled(
+                            inner.hat.can_add_pets(),
+                            Button::new(text.get("Walking pet")),
+                        )
+                        .clicked()
+                {
                     if let Some(path) = rfd::FileDialog::new().pick_file() {
-                        if let Ok(hat) = WereableHat::load_from_path(path, gl) {
-                            inner
-                                .hat
-                                .add_unique_hat(hats::HatType::Wereable, Box::new(hat));
+                        if let Ok(hat) = WalkingPet::load_from_path(path, gl) {
+                            inner.hat.add_pet(Box::new(hat));
+                            ui.close_menu();
+                        }
+                    }
+                }
+                if inner.hat.preview().is_none()
+                    && ui
+                        .add_enabled(
+                            inner.hat.can_add_pets(),
+                            Button::new(text.get("Flying pet")),
+                        )
+                        .clicked()
+                {
+                    if let Some(path) = rfd::FileDialog::new().pick_file() {
+                        if let Ok(hat) = FlyingPet::load_from_path(path, gl) {
+                            inner.hat.add_pet(Box::new(hat));
+                            ui.close_menu();
                         }
                     }
                 }
@@ -412,7 +456,7 @@ impl MyEguiApp {
         let result = last_tab.inner.borrow_mut().hat.save(dir_path);
         result.ok()
     }
-
+    //TODO: change tab's name after save
     fn save_hat(&mut self) -> Option<()> {
         let last_tab = self.last_interacted_tab_mut()?;
         let hat = &mut last_tab.inner.borrow_mut().hat;

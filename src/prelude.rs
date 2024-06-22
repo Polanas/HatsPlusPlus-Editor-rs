@@ -1,6 +1,6 @@
 #[allow(unused_imports)]
 pub use crate::{
-    animation::{Animation, AnimationType},
-    hats::{ExtraHat, Hat, HatBase, HatType, LinkFrameState, PreviewHat, WereableHat, WingsHat},
+    animations::{Animation, AnimationType},
+    hats::{Extra, Hat, HatBase, HatType, LinkFrameState, Preview, Wereable, Wings},
     metapixels::{Metapixel, MetapixelType},
 };

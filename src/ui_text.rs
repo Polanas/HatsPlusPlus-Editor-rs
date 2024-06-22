@@ -25,8 +25,18 @@ impl UiText {
     }
     pub fn get(&self, text_name: &str) -> String {
         match self.language {
-            Language::English => self.data["en"][text_name].clone(),
-            Language::Russian => self.data["ru"][text_name].clone(),
+            Language::English => self.data["en"]
+                .get(text_name)
+                .unwrap_or_else(|| {
+                    panic!("could not find a key for: en, {0}", text_name);
+                })
+                .clone(),
+            Language::Russian => self.data["ru"]
+                .get(text_name)
+                .unwrap_or_else(|| {
+                    panic!("could not find a key for: ru, {0}", text_name);
+                })
+                .clone(),
         }
     }
 }

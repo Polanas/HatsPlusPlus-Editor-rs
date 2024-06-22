@@ -1,25 +1,25 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
 use std::cell::RefCell;
 
-use color_eyre::owo_colors::OwoColorize;
-use eframe::egui::scroll_area::ScrollBarVisibility;
 use eframe::egui::{
-    self, Button, CentralPanel, Color32, Grid, Id, Layout, RichText, ScrollArea, Vec2,
+    self, Button, CollapsingHeader, Color32, Grid, Layout, RichText, ScrollArea, Vec2, WidgetText,
 };
+
+use crate::animations::Frame;
+use crate::{animation_window, animations, hats, prelude::*};
 
 use eframe::egui::{DragValue, Ui};
 use egui_dock::{DockArea, DockState, NodeIndex, SurfaceIndex, TabViewer};
 use num_traits::ToPrimitive;
 
-use crate::animation::Animation;
 use crate::animation_window::{AnimationWindow, AnimationWindowFrameData};
 use crate::event_bus::EventBus;
 use crate::frames_from_range::frames_from_range;
-use crate::hats::WereableHat;
 use crate::hats::{AbstractHat, Hat, HatType, LinkFrameState};
+use crate::hats::{Extra, FlyingPet, WalkingPet, Wereable, Wings};
 use crate::renderer::Renderer;
-use crate::{colors, egui_utils, FrameData};
+use crate::{egui_utils, FrameData};
 pub enum NewHatEvent {
     Opened(std::path::PathBuf),
     New,
@@ -135,38 +135,29 @@ impl Tab {
         Self { inner }
     }
 }
+#[derive(Default)]
+struct AnimationChanges {
+    added: Option<AnimationType>,
+    removed: Option<AnimationType>,
+}
+
+impl AnimationChanges {
+    fn new(added: Option<AnimationType>, removed: Option<AnimationType>) -> Self {
+        Self { added, removed }
+    }
+}
 
 pub struct MyTabViewer<'a> {
     added_nodes: &'a mut Vec<(SurfaceIndex, NodeIndex)>,
     frame_data: FrameData<'a>,
 }
+
 impl MyTabViewer<'_> {
-    // fn draw_extra_hat_ui(&mut self, ui: &mut Ui, hat: &mut ExtraHat) {
-    //     let Some(texture) = hat.texture().cloned() else {
-    //         return;
-    //     };
-    //     let bitmap = hat.base().bitmap.as_ref().unwrap();
-    //     let (rect, response) = ui.allocate_exact_size(
-    //         egui::Vec2::new(bitmap.width as f32, bitmap.height as f32),
-    //         egui::Sense {
-    //             click: false,
-    //             drag: false,
-    //             focusable: false,
-    //         },
-    //     );
-    //     let frame_size = hat.base().frame_size;
-    //     let callback = egui::PaintCallback {
-    //         rect,
-    //         callback: Arc::new(egui_glow::CallbackFn::new(move |info, painter| {
-    //             paint(painter.gl(), texture.clone() frame_size, 0.0)
-    //         })),
-    //     };
-    //     ui.painter().add(callback);
-    // }
-    fn draw_animatin_window(&mut self, ui: &mut Ui, hat: &mut Box<dyn AbstractHat>) {
-        // self.
-    }
-    fn draw_wereable_hat_ui(&mut self, ui: &mut Ui, hat: &mut WereableHat) {
+    fn draw_extra_hat_ui(&mut self, ui: &mut Ui, hat: &mut Extra) {}
+    fn draw_wings_ui(&mut self, ui: &mut Ui, hat: &mut Wings) {}
+    fn draw_flying_pet_ui(&mut self, ui: &mut Ui, hat: &mut FlyingPet) {}
+    fn draw_walking_pet_ui(&mut self, ui: &mut Ui, hat: &mut WalkingPet) {}
+    fn draw_wereable_hat_ui(&mut self, ui: &mut Ui, hat: &mut Wereable) {
         ScrollArea::new([true, true])
             .drag_to_scroll(false)
             .show(ui, |ui| {
@@ -178,7 +169,7 @@ impl MyTabViewer<'_> {
                     ui.add(
                         DragValue::new(&mut hat.base.frame_size.x)
                             .speed(0.2)
-                            .clamp_range(32..=64),
+                            .clamp_range(hats::MIN_FRAME_SIZE..=hats::MAX_FRAME_SIZE),
                     );
                     ui.label("Y:");
                     ui.add(DragValue::new(&mut hat.base.frame_size.y).clamp_range(32..=64));
@@ -203,12 +194,33 @@ impl MyTabViewer<'_> {
                             "Inverted",
                         );
                     });
-                self.draw_animations_ui(hat as &mut dyn AbstractHat, ui);
+                let anim_changes = self.draw_animations_ui(hat as &mut dyn AbstractHat, ui);
+                if let Some(anim) = anim_changes.added {
+                    hat.animations.push(Animation::new(anim, 3, false, vec![]));
+                }
+                if let Some(anim) = anim_changes.removed {
+                    hat.animations.retain(|a| a.anim_type == anim);
+                }
             });
     }
-
-    fn draw_animations_ui(&mut self, hat: &mut dyn AbstractHat, ui: &mut Ui) {
+    fn draw_animations_ui(&mut self, hat: &mut dyn AbstractHat, ui: &mut Ui) -> AnimationChanges {
         let frames_amount = hat.frames_amount();
+        let mut anim_to_delete = None;
+        let mut anim_to_add = None;
+        let Some(avalible_anims) = animations::avalible_animations(hat.base().hat_type) else {
+            return AnimationChanges::default();
+        };
+        let can_add_animations =
+            avalible_anims.len() != hat.animations().map(|a| a.len()).unwrap_or(0);
+        CollapsingHeader::new("Add an animation")
+            .enabled(can_add_animations)
+            .show(ui, |ui| {
+                for anim in avalible_anims {
+                    if ui.button(anim.to_string()).clicked() {
+                        anim_to_add = Some(anim);
+                    }
+                }
+            });
         for anim in hat.animations_mut().unwrap_or_default() {
             egui::CollapsingHeader::new(anim.anim_type.to_string()).show(ui, |ui| {
                 Grid::new("grid").show(ui, |ui| {
@@ -228,15 +240,21 @@ impl MyTabViewer<'_> {
                     ui.checkbox(&mut anim.looping, "");
                 });
                 let mut delete_frame_index = None;
+                let mut add_frame_index = None;
                 egui_dnd::dnd(ui, "my_dnd").show_vec(
                     &mut anim.frames,
-                    |ui, item, handle, state| {
-                        ui.horizontal(|ui| {
-                            handle.ui(ui, |ui| {
-                                ui.label(item.to_string());
-                                if ui.button("X").clicked() {
-                                    delete_frame_index = Some(state.index);
-                                }
+                    |ui, item: &mut Frame, handle, state| {
+                        ui.push_id(item.id().0, |ui| {
+                            ui.horizontal(|ui| {
+                                handle.ui(ui, |ui| {
+                                    ui.label(item.value.to_string());
+                                    if ui.button("+").clicked() {
+                                        add_frame_index = Some(state.index);
+                                    }
+                                    if ui.button("X").clicked() {
+                                        delete_frame_index = Some(state.index);
+                                    }
+                                });
                             });
                         });
                     },
@@ -244,13 +262,16 @@ impl MyTabViewer<'_> {
                 if let Some(index) = delete_frame_index {
                     anim.frames.remove(index);
                 }
+                if let Some(index) = add_frame_index {
+                    anim.frames.insert(index, anim.frames[index].clone());
+                }
 
                 ui.horizontal(|ui| {
                     ui.add(egui::DragValue::new(&mut anim.new_frame)).changed();
                     if ui.button("Add Frame").clicked()
                         && (0..frames_amount).contains(&anim.new_frame.to_u32().unwrap_or(0))
                     {
-                        anim.frames.push(anim.new_frame);
+                        anim.frames.push(anim.new_frame.into());
                         anim.new_frame += 1;
                     }
                 });
@@ -271,13 +292,14 @@ impl MyTabViewer<'_> {
                 if ui.button("Clear Frames").clicked() {
                     anim.frames.clear();
                 }
-                let config = &self.frame_data.config;
-                if egui_utils::red_button(ui, "Delete", config.is_light_theme()).clicked() {
-                    println!("anim was deleted");
-                    //do stuff
+                if egui_utils::red_button(ui, "Delete", self.frame_data.config.is_light_theme())
+                    .clicked()
+                {
+                    anim_to_delete = Some(anim.anim_type);
                 }
             });
         }
+        AnimationChanges::new(anim_to_add.copied(), anim_to_delete)
     }
 
     fn ui_home(&mut self, ui: &mut Ui) -> Option<NewHatEvent> {
@@ -356,7 +378,19 @@ impl TabViewer for MyTabViewer<'_> {
             ui.label("Looks like this has is totaly empty! Maybe add an element or two?");
             return;
         }
-        let selected_hat_type = inner.selected_hat_type.unwrap();
+        let selected_hat_type = inner.selected_hat_type.unwrap_or(
+            SelectedHat::from_hat_type(
+                inner
+                    .hat
+                    .iter_all_elements()
+                    .next()
+                    .unwrap()
+                    .base()
+                    .hat_type,
+                Some(&inner.hat.pets),
+            )
+            .unwrap(),
+        );
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 0.0;
             ui.label("Path: ");
@@ -372,6 +406,7 @@ impl TabViewer for MyTabViewer<'_> {
             }
         });
         match selected_hat_type {
+            //TODO: pets should also get an animation window
             selected_type if !matches!(selected_type, SelectedHat::Pet(_)) => {
                 //keep calm and call clone, right?
                 if let Some((animations, texture, frame_size)) = inner
@@ -381,7 +416,7 @@ impl TabViewer for MyTabViewer<'_> {
                     .and_then(|h| try { (h.animations()?, h.texture()?, h.base().frame_size) })
                     .map(|t| (t.0.to_vec(), t.1.clone(), t.2))
                 {
-                    let hat_name = inner.hat.name().unwrap();
+                    let hat_name = inner.title.clone();
                     inner.animation_window.draw(AnimationWindowFrameData {
                         ui,
                         shader: self.frame_data.shader.clone(),
@@ -404,7 +439,7 @@ impl TabViewer for MyTabViewer<'_> {
             }
             SelectedHat::Extra => {
                 if let Some(hat) = &mut inner.hat.extra_mut() {
-                    // self.draw_extra_hat_ui(ui, hat);
+                    self.draw_extra_hat_ui(ui, hat);
                 }
             }
             _ => (),

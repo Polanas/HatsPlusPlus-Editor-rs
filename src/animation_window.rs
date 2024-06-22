@@ -4,9 +4,10 @@ use bevy_math::{vec2, IVec2, Vec2};
 use eframe::egui::{Button, CollapsingHeader, DragValue, Id, ImageButton, Ui, Window};
 use eframe::glow::Context;
 use eframe::glow::{self, HasContext};
+use num_traits::CheckedSub;
 
-use crate::{animation, egui_utils, AnimationWindowAction};
-use crate::{animation::Animation, shader::Shader, texture::Texture, VERTEX_ARRAY};
+use crate::{animations, egui_utils, AnimationWindowAction};
+use crate::{animations::Animation, shader::Shader, texture::Texture, VERTEX_ARRAY};
 
 const DUCK_GAME_HERTZ: f32 = 60.0;
 
@@ -59,7 +60,10 @@ impl AnimationWindow {
         }
     }
     pub fn draw(&mut self, data: AnimationWindowFrameData) {
-        self.current_anim_index = usize::min(self.current_anim_index, data.animations.len() - 1);
+        self.current_anim_index = usize::min(
+            self.current_anim_index,
+            data.animations.len().saturating_sub(1),
+        );
         let animation = data.animations.get(self.current_anim_index);
         if let Some(animation) = animation {
             if !self.paused {
@@ -97,7 +101,12 @@ impl AnimationWindow {
                     },
                 );
                 let current_frame = animation
-                    .map(|anim| *anim.frames.get(self.current_frame_index).unwrap_or(&0))
+                    .map(|anim| {
+                        anim.frames
+                            .get(self.current_frame_index)
+                            .map(|f| f.value)
+                            .unwrap_or(0)
+                    })
                     .unwrap_or_default() as f32;
                 let uniforms = Uniforms {
                     current_frame,

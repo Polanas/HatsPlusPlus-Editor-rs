@@ -4,7 +4,7 @@ use std::fmt::Display;
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 
-use crate::animation::{Animation, AnimationType};
+use crate::animations::{Animation, AnimationType};
 use crate::file_utils::FileStemString;
 use crate::hat_utils::*;
 use crate::metapixels::Metapixels;
@@ -74,13 +74,25 @@ macro_rules! impl_abstract_hat {
     };
 }
 
-impl_abstract_hat!(WereableHat, base, animations);
-impl_abstract_hat!(WingsHat, base);
+impl_abstract_hat!(Wereable, base, animations);
+impl_abstract_hat!(Wings, base);
 impl_abstract_hat!(RoomHat, base);
-impl_abstract_hat!(ExtraHat, base);
-impl_abstract_hat!(PreviewHat, base);
+impl_abstract_hat!(Extra, base);
+impl_abstract_hat!(Preview, base);
 impl_abstract_hat!(WalkingPet, hat_base, pet_base.animations);
 impl_abstract_hat!(FlyingPet, hat_base, pet_base.animations);
+
+const PREVIEW_NAME: &str = "preview";
+const EXTRA_NAME: &str = "extrahat";
+const WEREABLE_NAME: &str = "hat";
+#[allow(dead_code)]
+const ROOM_NAME: &str = "room";
+const WALKING_PET_NAME: &str = "walkingpet";
+const FLYING_PET_NAME: &str = "flyingpet";
+const WINGS_NAME: &str = "wings";
+const MAX_PETS: usize = 5;
+pub const MIN_FRAME_SIZE: i32 = 32;
+pub const MAX_FRAME_SIZE: i32 = 64;
 
 pub trait HatName: GetHatBase {
     fn hat_name(&self) -> Option<String> {
@@ -127,13 +139,13 @@ macro_rules! gen_metapixels_branch {
 impl GenMetapixels for Box<dyn AbstractHat> {
     fn gen_metapixels(&self) -> Vec<Metapixel> {
         match self.base().hat_type {
-            HatType::Wereable => gen_metapixels_branch!(self, WereableHat),
-            HatType::Wings => gen_metapixels_branch!(self, WingsHat),
-            HatType::Extra => gen_metapixels_branch!(self, ExtraHat),
+            HatType::Wereable => gen_metapixels_branch!(self, Wereable),
+            HatType::Wings => gen_metapixels_branch!(self, Wings),
+            HatType::Extra => gen_metapixels_branch!(self, Extra),
             HatType::WalkingPet => gen_metapixels_branch!(self, WalkingPet),
             HatType::FlyingPet => gen_metapixels_branch!(self, FlyingPet),
             HatType::Room => gen_metapixels_branch!(self, RoomHat),
-            HatType::Preview => gen_metapixels_branch!(self, PreviewHat),
+            HatType::Preview => gen_metapixels_branch!(self, Preview),
             HatType::Unspecified => panic!("Invalid hat type: {}", HatType::Unspecified),
         }
     }
@@ -177,7 +189,7 @@ trait SaveHat: GenMetapixels + GetHatBase {
     }
 }
 
-pub trait LoadHat: Sized {
+pub trait LoadHat: Sized + AbstractHat {
     fn load_from_path(path: impl AsRef<Path>, gl: &Context) -> Result<Self> {
         let name_and_size =
             get_name_and_size(&path.as_ref().file_stem_string().unwrap_or_default());
@@ -309,8 +321,8 @@ impl LoadHat for FlyingPet {
                 bitmap: Bitmap::from_path(path.as_ref()).ok(),
                 hat_type: HatType::FlyingPet,
                 path: path.as_ref().to_owned(),
+                frame_size: (MIN_FRAME_SIZE, MIN_FRAME_SIZE).into(),
                 texture: Some(texture),
-                ..Default::default()
             },
             ..Default::default()
         };
@@ -467,24 +479,24 @@ impl GenMetapixels for WalkingPet {
 }
 
 #[derive(Debug, Default)]
-pub struct PreviewHat {
+pub struct Preview {
     pub base: HatBase,
 }
 
-impl GenMetapixels for PreviewHat {
+impl GenMetapixels for Preview {
     fn gen_metapixels(&self) -> Vec<Metapixel> {
         vec![]
     }
 }
 
-impl LoadHat for PreviewHat {
+impl LoadHat for Preview {
     fn load_from_path(path: impl AsRef<Path>, gl: &Context) -> Result<Self> {
         let bitmap = Bitmap::from_path(path.as_ref())?;
         let texture = Texture::from_path(gl, &path)?;
-        Ok(PreviewHat {
+        Ok(Preview {
             base: HatBase {
                 hat_type: HatType::Preview,
-                frame_size: (bitmap.width as i32, bitmap.height as i32).into(),
+                frame_size: (MIN_FRAME_SIZE, MIN_FRAME_SIZE).into(),
                 hat_area_size: (bitmap.width as i32, bitmap.height as i32).into(),
                 bitmap: Some(bitmap),
                 path: path.as_ref().to_owned(),
@@ -504,7 +516,7 @@ impl LoadHat for PreviewHat {
 
 #[derive(Debug, Derivative)]
 #[derivative(Default)]
-pub struct WingsHat {
+pub struct Wings {
     #[derivative(Default(value = "IVec2::new(128,128)"))]
     pub general_offset: IVec2,
     #[derivative(Default(value = "IVec2::new(128,128)"))]
@@ -524,7 +536,7 @@ pub struct WingsHat {
     pub base: HatBase,
 }
 
-impl LoadHat for WingsHat {
+impl LoadHat for Wings {
     fn load_from_name_and_size(
         path: impl AsRef<Path>,
         name_and_size: HatNameAndSize,
@@ -532,14 +544,14 @@ impl LoadHat for WingsHat {
     ) -> Result<Self> {
         let (metapixels, size) = get_metapixels_and_size(path.as_ref(), &name_and_size)?;
         let texture = Texture::from_path(gl, &path)?;
-        let mut hat = WingsHat {
+        let mut hat = Wings {
             base: HatBase {
                 hat_area_size: size,
                 bitmap: Bitmap::from_path(path.as_ref()).ok(),
                 hat_type: HatType::Wings,
+                frame_size: (MIN_FRAME_SIZE, MIN_FRAME_SIZE).into(),
                 path: path.as_ref().to_owned(),
                 texture: Some(texture),
-                ..Default::default()
             },
             ..Default::default()
         };
@@ -580,7 +592,7 @@ impl LoadHat for WingsHat {
 }
 
 //TODO: add animations for wings
-impl GenMetapixels for WingsHat {
+impl GenMetapixels for Wings {
     fn gen_metapixels(&self) -> Vec<Metapixel> {
         let mut metapixels = Metapixels::new();
         if self.general_offset.x != 128 || self.general_offset.y != 128 {
@@ -646,7 +658,7 @@ impl GenMetapixels for WingsHat {
 }
 
 #[derive(Debug, Default)]
-pub struct WereableHat {
+pub struct Wereable {
     pub strapped_on: bool,
     pub is_big: bool,
     pub animations: Vec<Animation>,
@@ -655,7 +667,7 @@ pub struct WereableHat {
     pub base: HatBase,
 }
 
-impl LoadHat for WereableHat {
+impl LoadHat for Wereable {
     fn load_from_name_and_size(
         path: impl AsRef<Path>,
         name_and_size: HatNameAndSize,
@@ -663,14 +675,14 @@ impl LoadHat for WereableHat {
     ) -> Result<Self> {
         let texture = Texture::from_path(gl, &path)?;
         let (metapixels, size) = get_metapixels_and_size(path.as_ref(), &name_and_size)?;
-        let mut hat: WereableHat = WereableHat {
+        let mut hat: Wereable = Wereable {
             base: HatBase {
                 hat_area_size: size,
                 bitmap: Bitmap::from_path(path.as_ref()).ok(),
                 hat_type: HatType::Wereable,
                 path: path.as_ref().to_owned(),
+                frame_size: (MIN_FRAME_SIZE, MIN_FRAME_SIZE).into(),
                 texture: Some(texture),
-                ..Default::default()
             },
             ..Default::default()
         };
@@ -703,7 +715,7 @@ impl LoadHat for WereableHat {
     }
 }
 
-impl GenMetapixels for WereableHat {
+impl GenMetapixels for Wereable {
     fn gen_metapixels(&self) -> Vec<Metapixel> {
         let mut metapixels = Metapixels::new();
         if self.strapped_on {
@@ -754,8 +766,8 @@ impl LoadHat for RoomHat {
                 bitmap: Bitmap::from_path(path.as_ref()).ok(),
                 hat_type: HatType::Room,
                 path: path.as_ref().to_owned(),
+                frame_size: (MIN_FRAME_SIZE, MIN_FRAME_SIZE).into(),
                 texture: Some(texture),
-                ..Default::default()
             },
         };
         Ok(hat)
@@ -769,11 +781,11 @@ impl GenMetapixels for RoomHat {
 }
 
 #[derive(Debug, Default)]
-pub struct ExtraHat {
+pub struct Extra {
     pub base: HatBase,
 }
 
-impl LoadHat for ExtraHat {
+impl LoadHat for Extra {
     fn load_from_name_and_size(
         path: impl AsRef<Path>,
         name_and_size: HatNameAndSize,
@@ -781,14 +793,14 @@ impl LoadHat for ExtraHat {
     ) -> Result<Self> {
         let texture = Texture::from_path(gl, &path)?;
         let (metapixels, size) = get_metapixels_and_size(path.as_ref(), &name_and_size)?;
-        let mut hat = ExtraHat {
+        let mut hat = Extra {
             base: HatBase {
                 hat_area_size: size,
                 bitmap: Bitmap::from_path(path.as_ref()).ok(),
                 hat_type: HatType::Extra,
                 path: path.as_ref().to_owned(),
+                frame_size: (MIN_FRAME_SIZE, MIN_FRAME_SIZE).into(),
                 texture: Some(texture),
-                ..Default::default()
             },
         };
 
@@ -806,7 +818,7 @@ impl LoadHat for ExtraHat {
     }
 }
 
-impl GenMetapixels for ExtraHat {
+impl GenMetapixels for Extra {
     fn gen_metapixels(&self) -> Vec<Metapixel> {
         let mut metapixels = Metapixels::new();
         metapixels.push(
@@ -817,15 +829,6 @@ impl GenMetapixels for ExtraHat {
         metapixels.pixels
     }
 }
-
-const PREVIEW_NAME: &str = "preview";
-const EXTRA_NAME: &str = "extrahat";
-const WEREABLE_NAME: &str = "hat";
-#[allow(dead_code)]
-const ROOM_NAME: &str = "room";
-const WALKING_PET_NAME: &str = "walkingpet";
-const FLYING_PET_NAME: &str = "flyingpet";
-const WINGS_NAME: &str = "wings";
 
 #[derive(Debug, Default)]
 pub struct Hat {
@@ -883,15 +886,18 @@ impl Hat {
             }
         }
     }
-    pub fn wereable(&self) -> Option<&WereableHat> {
+    pub fn can_add_pets(&self) -> bool {
+        self.pets.len() < MAX_PETS
+    }
+    pub fn wereable(&self) -> Option<&Wereable> {
         self.unique_elemets
             .get(&HatType::Wereable)
-            .and_then(|e| e.downcast_ref::<WereableHat>())
+            .and_then(|e| e.downcast_ref::<Wereable>())
     }
-    pub fn wereable_mut(&mut self) -> Option<&mut WereableHat> {
+    pub fn wereable_mut(&mut self) -> Option<&mut Wereable> {
         self.unique_elemets
             .get_mut(&HatType::Wereable)
-            .and_then(|e| e.downcast_mut::<WereableHat>())
+            .and_then(|e| e.downcast_mut::<Wereable>())
     }
     pub fn room(&self) -> Option<&RoomHat> {
         self.unique_elemets
@@ -903,10 +909,10 @@ impl Hat {
             .get_mut(&HatType::Room)
             .and_then(|e| e.downcast_mut::<RoomHat>())
     }
-    pub fn preview(&self) -> Option<&PreviewHat> {
+    pub fn preview(&self) -> Option<&Preview> {
         self.unique_elemets
             .get(&HatType::Preview)
-            .and_then(|e| e.downcast_ref::<PreviewHat>())
+            .and_then(|e| e.downcast_ref::<Preview>())
     }
     pub fn walking_pet_mut(&mut self) -> Option<&mut WalkingPet> {
         self.unique_elemets
@@ -928,25 +934,25 @@ impl Hat {
             .get(&HatType::FlyingPet)
             .and_then(|e| e.downcast_ref::<FlyingPet>())
     }
-    pub fn extra_mut(&mut self) -> Option<&mut ExtraHat> {
+    pub fn extra_mut(&mut self) -> Option<&mut Extra> {
         self.unique_elemets
             .get_mut(&HatType::Extra)
-            .and_then(|e| e.downcast_mut::<ExtraHat>())
+            .and_then(|e| e.downcast_mut::<Extra>())
     }
-    pub fn extra(&self) -> Option<&ExtraHat> {
+    pub fn extra(&self) -> Option<&Extra> {
         self.unique_elemets
             .get(&HatType::Extra)
-            .and_then(|e| e.downcast_ref::<ExtraHat>())
+            .and_then(|e| e.downcast_ref::<Extra>())
     }
-    pub fn wings_mut(&mut self) -> Option<&mut WereableHat> {
+    pub fn wings_mut(&mut self) -> Option<&mut Wereable> {
         self.unique_elemets
             .get_mut(&HatType::Wings)
-            .and_then(|e| e.downcast_mut::<WereableHat>())
+            .and_then(|e| e.downcast_mut::<Wereable>())
     }
-    pub fn wings(&self) -> Option<&WereableHat> {
+    pub fn wings(&self) -> Option<&Wereable> {
         self.unique_elemets
             .get(&HatType::Wings)
-            .and_then(|e| e.downcast_ref::<WereableHat>())
+            .and_then(|e| e.downcast_ref::<Wereable>())
     }
     pub fn remove_pet(&mut self, index: usize) {
         self.pets.remove(index);
@@ -978,7 +984,7 @@ impl Hat {
     pub fn save(&self, dir_path: impl AsRef<Path>) -> Result<()> {
         let path = dir_path.as_ref();
         for element in self.unique_elemets.values() {
-            if let Some(preview) = element.downcast_ref::<PreviewHat>() {
+            if let Some(preview) = element.downcast_ref::<Preview>() {
                 if let Some(bitmap) = &preview.base().bitmap {
                     bitmap.save(path.join("preview.png"))?;
                 }
@@ -1014,28 +1020,28 @@ impl Hat {
             match name_and_size.name.to_lowercase().as_str() {
                 WINGS_NAME => {
                     if let Ok(wings) =
-                        WingsHat::load_from_name_and_size(entry.path(), name_and_size, gl)
+                        Wings::load_from_name_and_size(entry.path(), name_and_size, gl)
                     {
                         hat.add_unique_hat(HatType::Wings, Box::new(wings));
                     }
                 }
                 EXTRA_NAME => {
                     if let Ok(extra) =
-                        ExtraHat::load_from_name_and_size(entry.path(), name_and_size, gl)
+                        Extra::load_from_name_and_size(entry.path(), name_and_size, gl)
                     {
                         hat.add_unique_hat(HatType::Extra, Box::new(extra));
                     }
                 }
                 PREVIEW_NAME => {
                     if let Ok(preview) =
-                        PreviewHat::load_from_name_and_size(entry.path(), name_and_size, gl)
+                        Preview::load_from_name_and_size(entry.path(), name_and_size, gl)
                     {
                         hat.add_unique_hat(HatType::Preview, Box::new(preview));
                     }
                 }
                 WEREABLE_NAME => {
                     if let Ok(wereable) =
-                        WereableHat::load_from_name_and_size(entry.path(), name_and_size, gl)
+                        Wereable::load_from_name_and_size(entry.path(), name_and_size, gl)
                     {
                         hat.add_unique_hat(HatType::Wereable, Box::new(wereable));
                     }
