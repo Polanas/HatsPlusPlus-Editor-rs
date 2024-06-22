@@ -165,10 +165,12 @@ impl MyTabViewer<'_> {
                     });
                 let anim_changes = self.draw_animations_ui(hat as &mut dyn AbstractHat, ui);
                 if let Some(anim) = anim_changes.added {
-                    hat.animations.push(Animation::new(anim, 3, false, vec![]));
+                    if !hat.animations.iter().any(|h| h.anim_type == anim) {
+                        hat.animations.push(Animation::new(anim, 3, false, vec![]));
+                    }
                 }
                 if let Some(anim) = anim_changes.removed {
-                    hat.animations.retain(|a| a.anim_type == anim);
+                    hat.animations.retain(|a| a.anim_type != anim);
                 }
             });
     }
@@ -181,7 +183,12 @@ impl MyTabViewer<'_> {
         };
         let can_add_animations =
             avalible_anims.len() != hat.animations().map(|a| a.len()).unwrap_or(0);
+        let open = match can_add_animations {
+            true => None,
+            false => Some(false),
+        };
         CollapsingHeader::new("Add an animation")
+            .open(open)
             .enabled(can_add_animations)
             .show(ui, |ui| {
                 for anim in avalible_anims {
