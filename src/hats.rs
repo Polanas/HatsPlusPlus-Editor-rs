@@ -97,7 +97,9 @@ const ROOM_NAME: &str = "room";
 const WALKING_PET_NAME: &str = "walkingpet";
 const FLYING_PET_NAME: &str = "flyingpet";
 const WINGS_NAME: &str = "wings";
-const MAX_PETS: usize = 5;
+pub const MAX_PETS: usize = 5;
+pub const DEFAULT_WINGS_IDLE_FRAME: i32 = 0;
+pub const DEFAULT_AUTO_SPEED: i32 = 4;
 pub const MAX_EXTRA_HAT_SIZE: IVec2 = IVec2::new(97, 56);
 pub const MIN_FRAME_SIZE: i32 = 32;
 pub const MAX_FRAME_SIZE: i32 = 64;
@@ -310,8 +312,8 @@ pub struct HatBase {
 pub struct FlyingPet {
     pub pet_base: PetBase,
     pub hat_base: HatBase,
-    changes_angle: bool,
-    speed: Option<i32>,
+    pub changes_angle: bool,
+    pub speed: Option<i32>,
 }
 impl LoadHat for FlyingPet {
     fn load_from_name_and_size(
@@ -550,9 +552,9 @@ pub struct Wings {
     #[derivative(Default(value = "IVec2::new(128,128)"))]
     pub net_offset: IVec2,
     pub gen_animations: bool,
-    pub auto_glide_frame: Option<i32>,
-    pub auto_idle_frame: Option<i32>,
-    pub auto_anim_speed: Option<i32>,
+    pub auto_glide_frame: i32,
+    pub auto_idle_frame: i32,
+    pub auto_anim_speed: i32,
     pub changes_animations: bool,
     pub size_state: bool,
     pub base: HatBase,
@@ -583,6 +585,10 @@ impl LoadHat for Wings {
             },
             ..Default::default()
         };
+        let mut has_auto_speed = false;
+
+        hat.auto_glide_frame = hat.frames_amount() as i32;
+        hat.auto_idle_frame = DEFAULT_WINGS_IDLE_FRAME;
         for pixel in metapixels {
             match pixel.get_type() {
                 MetapixelType::WingsNetOffset => {
@@ -602,13 +608,14 @@ impl LoadHat for Wings {
                 }
                 MetapixelType::GenerateWingsAnimations => hat.gen_animations = true,
                 MetapixelType::WingsAutoGlideFrame => {
-                    hat.auto_glide_frame = Some(pixel.g.saturating_add(1) as i32)
+                    hat.auto_glide_frame = pixel.g.saturating_add(1) as i32
                 }
                 MetapixelType::WingsAutoIdleFrame => {
-                    hat.auto_idle_frame = Some(pixel.g.saturating_add(1) as i32)
+                    hat.auto_idle_frame = pixel.g.saturating_add(1) as i32
                 }
                 MetapixelType::WingsAutoAnimationsSpeed => {
-                    hat.auto_anim_speed = Some(pixel.g as i32)
+                    hat.auto_anim_speed = pixel.g as i32;
+                    has_auto_speed = true;
                 }
                 MetapixelType::FrameSize => {
                     hat.base.frame_size = IVec2::new(pixel.g as i32, pixel.b as i32)
@@ -618,9 +625,14 @@ impl LoadHat for Wings {
                 _ => (),
             }
         }
+
         hat.animations.push(Animation::new(
             AnimationType::OnDefault,
-            hat.auto_anim_speed.unwrap_or(4),
+            if has_auto_speed {
+                hat.auto_anim_speed
+            } else {
+                DEFAULT_AUTO_SPEED
+            },
             false,
             frames_from_range(0, hat.frames_amount() as i32 - 1),
         ));
@@ -677,20 +689,25 @@ impl GenMetapixels for Wings {
         if self.changes_animations {
             metapixels.push(MetapixelType::ChangeAnimationsEveryLevel, 0, 0);
         }
-        if let Some(speed) = self.auto_anim_speed {
-            metapixels.push(MetapixelType::WingsAutoAnimationsSpeed, speed as u8, 0);
-        }
-        if let Some(frame) = self.auto_glide_frame {
+        if self.auto_anim_speed != DEFAULT_AUTO_SPEED {
             metapixels.push(
-                MetapixelType::WingsAutoGlideFrame,
-                (frame as u8).saturating_sub(1),
+                MetapixelType::WingsAutoAnimationsSpeed,
+                self.auto_anim_speed as u8,
                 0,
             );
         }
-        if let Some(frame) = self.auto_idle_frame {
+        //don't substract one since auto glide frame starts from one
+        if self.auto_glide_frame != self.frames_amount() as i32 {
+            metapixels.push(
+                MetapixelType::WingsAutoGlideFrame,
+                (self.auto_glide_frame as u8).saturating_sub(1),
+                0,
+            );
+        }
+        if self.auto_idle_frame != DEFAULT_WINGS_IDLE_FRAME {
             metapixels.push(
                 MetapixelType::WingsAutoIdleFrame,
-                (frame as u8).saturating_sub(1),
+                (self.auto_idle_frame as u8).saturating_sub(1),
                 0,
             );
         }

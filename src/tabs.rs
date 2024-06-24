@@ -20,7 +20,7 @@ use num_traits::{Saturating, SaturatingSub, ToPrimitive};
 use crate::animation_window::{AnimationWindow, AnimationWindowFrameData};
 use crate::event_bus::EventBus;
 use crate::frames_from_range::frames_from_range;
-use crate::hats::{AbstractHat, Hat, HatElementId, HatType, LinkFrameState};
+use crate::hats::{AbstractHat, Hat, HatElementId, HatType, LinkFrameState, DEFAULT_AUTO_SPEED};
 use crate::hats::{Extra, FlyingPet, WalkingPet, Wereable, Wings};
 use crate::renderer::Renderer;
 use crate::{egui_utils, FrameData};
@@ -140,7 +140,8 @@ fn ivec2_ui<Num: Numeric>(
         ui.label(text);
     });
 }
-
+//TODO: rework optional metapixels so that they just aren't set if the value is default (and remove
+//this checkbox, add "Reset" button instead)
 fn drag_value_with_checkbox<Num: Numeric>(
     ui: &mut Ui,
     text: &str,
@@ -196,30 +197,38 @@ impl MyTabViewer<'_> {
                         .add(DragValue::new(&mut anim.delay).clamp_range(1..=255))
                         .changed()
                     {
-                        hat.auto_anim_speed = Some(anim.delay);
+                        hat.auto_anim_speed = anim.delay;
                     }
                     let plus = Button::new("+").min_size(Vec2::splat(18.0));
                     let minus = Button::new("-").min_size(Vec2::splat(18.0));
                     if ui.add(minus).clicked() {
                         anim.delay -= 1;
-                        hat.auto_anim_speed = Some(anim.delay);
+                        hat.auto_anim_speed = anim.delay;
                     } else if ui.add(plus).clicked() {
                         anim.delay += 1;
-                        hat.auto_anim_speed = Some(anim.delay);
+                        hat.auto_anim_speed = anim.delay;
+                    }
+                    if ui.button("Reset").clicked() {
+                        anim.delay = DEFAULT_AUTO_SPEED;
+                        hat.auto_anim_speed = DEFAULT_AUTO_SPEED;
                     }
                 });
-                drag_value_with_checkbox(
-                    ui,
-                    "Glide frame",
-                    &mut hat.auto_glide_frame,
-                    1..=frames_amount,
-                );
-                drag_value_with_checkbox(
-                    ui,
-                    "Idle frame",
-                    &mut hat.auto_idle_frame,
-                    1..=frames_amount,
-                );
+                ui.horizontal(|ui| {
+                    ui.label("Glide frame");
+                    ui.add(
+                        DragValue::new(&mut hat.auto_glide_frame).clamp_range(1..=frames_amount),
+                    );
+                    if ui.button("Reset").clicked() {
+                        hat.auto_glide_frame = frames_amount as i32;
+                    }
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Idle frame");
+                    ui.add(DragValue::new(&mut hat.auto_idle_frame).clamp_range(1..=frames_amount));
+                    if ui.button("Reset").clicked() {
+                        hat.auto_idle_frame = 0;
+                    }
+                });
                 ivec2_ui(
                     ui,
                     &mut hat.base_mut().frame_size,
@@ -265,11 +274,14 @@ impl MyTabViewer<'_> {
                     "Frame Size",
                 );
                 drag_value_with_checkbox(ui, "Distance", &mut hat.pet_base.distance, 0..=255);
+                drag_value_with_checkbox(ui, "Speed", &mut hat.speed, 0..=255);
                 ui.checkbox(&mut hat.pet_base.flipped, "Flip");
+                ui.checkbox(&mut hat.changes_angle, "Changes angle");
                 self.draw_animations_ui(hat, ui);
             });
     }
     fn draw_walking_pet_ui(&mut self, ui: &mut Ui, hat: &mut WalkingPet) {}
+    //TODO: add on spawn animation ui
     fn draw_wereable_hat_ui(&mut self, ui: &mut Ui, hat: &mut Wereable) {
         ScrollArea::new([true, true])
             .drag_to_scroll(false)
@@ -303,6 +315,29 @@ impl MyTabViewer<'_> {
                             "Inverted",
                         );
                     });
+                let mut spawn_animation =
+                    hat.on_spawn_animation.unwrap_or(AnimationType::Unspecified);
+                egui::ComboBox::from_label("Spawn animation")
+                    .selected_text(
+                        hat.on_spawn_animation
+                            .map(|anim| anim.to_string())
+                            .unwrap_or("None".to_owned()),
+                    )
+                    .show_ui(ui, |ui| {
+                        for anim in &hat.animations {
+                            ui.selectable_value(
+                                &mut spawn_animation,
+                                anim.anim_type,
+                                anim.anim_type.to_string(),
+                            );
+                        }
+                    });
+                if !matches!(spawn_animation, AnimationType::Unspecified) {
+                    hat.on_spawn_animation = Some(spawn_animation);
+                }
+                if !hat.animations.iter().any(|a| a.anim_type == spawn_animation) {
+                    hat.on_spawn_animation = None;
+                }
                 let anim_changes = self.draw_animations_ui(hat as &mut dyn AbstractHat, ui);
                 if let Some(anim) = anim_changes.added {
                     if !hat.animations.iter().any(|h| h.anim_type == anim) {

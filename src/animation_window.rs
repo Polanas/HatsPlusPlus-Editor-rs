@@ -6,7 +6,6 @@ use eframe::glow::Context;
 use eframe::glow::{self, HasContext};
 use once_cell::sync::Lazy;
 
-use crate::hats::MAX_FRAME_SIZE;
 use crate::prelude::AnimationType;
 use crate::{animations::Animation, shader::Shader, texture::Texture, VERTEX_ARRAY};
 use crate::{egui_utils, AnimationWindowAction};

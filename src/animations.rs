@@ -61,6 +61,7 @@ pub enum AnimationType {
     StartGliding,
     Idle,
     OnRessurect,
+    Unspecified,
 }
 
 impl Display for AnimationType {
@@ -78,6 +79,7 @@ impl Display for AnimationType {
             AnimationType::StartGliding => "Start Gliding",
             AnimationType::Idle => "Idle",
             AnimationType::OnRessurect => "On Ressurect",
+            AnimationType::Unspecified => "Unspecified",
         };
         write!(f, "{}", name)
     }
