@@ -180,13 +180,17 @@ impl MyEguiApp {
     fn execute_shortcuts(&mut self, gl: &Context, ui: &mut Ui) {
         if ui.shortcut_pressed(shortcuts::OPEN) {
             let _ = self.open_hat_with_dialog(gl);
-        } else if ui.shortcut_pressed(shortcuts::SAVE) {
+        }
+        if ui.shortcut_pressed(shortcuts::SAVE) {
             self.save_hat();
-        } else if ui.shortcut_pressed(shortcuts::NEW) {
+        }
+        if ui.shortcut_pressed(shortcuts::NEW) {
             self.add_new_hat();
-        } else if ui.shortcut_pressed(shortcuts::HOME) {
+        }
+        if ui.shortcut_pressed(shortcuts::HOME) {
             self.open_home_tab();
-        } else if ui.shortcut_pressed(shortcuts::SAVE_AS) {
+        }
+        if ui.shortcut_pressed(shortcuts::SAVE_AS) {
             self.save_hat_as();
         }
     }
@@ -451,7 +455,11 @@ impl MyEguiApp {
     fn save_hat_as(&mut self) -> Option<()> {
         let dir_path = rfd::FileDialog::new().pick_folder()?;
         let last_tab = self.last_interacted_tab_mut()?;
-        last_tab.inner.borrow_mut().hat.path = Some(dir_path.clone());
+        let mut inner = last_tab.inner.borrow_mut();
+        if inner.is_home_tab {
+            return None;
+        }
+        inner.hat.path = Some(dir_path.clone());
         let result = last_tab.inner.borrow_mut().hat.save(dir_path);
         result.ok()
     }
@@ -459,8 +467,7 @@ impl MyEguiApp {
     fn save_hat(&mut self) -> Option<()> {
         let last_tab = self.last_interacted_tab_mut()?;
         let hat = &mut last_tab.inner.borrow_mut().hat;
-        //if save is avalible, the hat has a path
-        hat.save(hat.path.as_ref().unwrap()).ok()
+        hat.save(hat.path.as_ref()?).ok()
     }
 
     fn button_shortcut(

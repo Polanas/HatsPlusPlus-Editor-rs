@@ -8,12 +8,15 @@ uniform vec2 frame_size;
 uniform float current_frame;
 
 vec2 index_to_position(float index, float width) {
-    return vec2(round(mod(index, width)), round(index / width));
+    float x = round(mod(index, width));
+    float y = round((index - x) / width);
+    return vec2(x,y);
 }
 
 const vec3 GRID_COL1 = vec3(192)/255;
 const vec3 GRID_COL2 = vec3(128)/255;
 
+//this shader is cursed
 void main()
 {
     vec2 uv = tex_coord;
@@ -22,11 +25,18 @@ void main()
     vec2 pixel_size = 1.0 / tex_size;
     uv.y = 1 - uv.y;
     uv = floor(uv / pixel_size) * pixel_size;
-    // adjust uv to be in the center of a pixel
-    uv += .5 * pixel_size;
+    vec2 grid_uv = uv;
+    grid_uv += .5 * pixel_size;
+    grid_uv /= tex_size;
+    // adjust uv to be in the center of a pixel 
+    if (int(mod(frame_size.x,2.0)) != 0 || int(mod(frame_size.y,2.0)) != 0) {
+        uv += .5 * pixel_size.xy;
+    }
+    else {
+        uv.y += .5 * pixel_size.y;
+    }
     // now uv covers one pixel
     uv /= tex_size;
-    vec2 grid_uv = uv;
     // move to current frame
     uv += pixel_size * pos;
     // ...and now, one frame

@@ -16,8 +16,13 @@ pub struct HatNameAndSize {
 }
 
 impl HatNameAndSize {
-    fn new(name: String, size: Option<IVec2>) -> Self {
+    pub fn new(name: String, size: Option<IVec2>) -> Self {
         Self { name, size }
+    }
+    pub fn is_name_valid(&self) -> bool {
+        return (0..(HatType::Unspecified as i32))
+            .map(|i| HatType::from_i32(i).unwrap())
+            .any(|t| t.save_name() == self.name.to_lowercase());
     }
 }
 

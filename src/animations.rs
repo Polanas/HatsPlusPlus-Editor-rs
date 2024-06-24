@@ -167,7 +167,7 @@ impl Animation {
             delay,
             looping,
             frames,
-            new_frame: 0,
+            new_frame: 1,
             new_range_end: 1,
             new_range_start: 1,
         }

@@ -1,10 +1,14 @@
+use std::ops::RangeInclusive;
 use std::sync::Mutex;
 
 use std::cell::RefCell;
 
+use bevy_math::IVec2;
 use eframe::egui::{
-    self, Button, CollapsingHeader, Color32, Grid, Layout, RichText, ScrollArea, Vec2, WidgetText,
+    self, Button, CollapsingHeader, Color32, Grid, Layout, Response, RichText, ScrollArea, Vec2,
+    WidgetText,
 };
+use eframe::emath::Numeric;
 
 use crate::animations::Frame;
 use crate::{animation_window, animations, hats, prelude::*};
@@ -121,10 +125,150 @@ pub struct MyTabViewer<'a> {
     frame_data: FrameData<'a>,
 }
 
+fn ivec2_ui<Num: Numeric>(
+    ui: &mut Ui,
+    vec: &mut IVec2,
+    range_x: RangeInclusive<Num>,
+    range_y: RangeInclusive<Num>,
+    text: &str,
+) {
+    ui.horizontal(|ui| {
+        ui.label("X:");
+        ui.add(DragValue::new(&mut vec.x).speed(0.2).clamp_range(range_x));
+        ui.label("Y:");
+        ui.add(DragValue::new(&mut vec.y).clamp_range(range_y));
+        ui.label(text);
+    });
+}
+
+fn drag_value_with_checkbox<Num: Numeric>(
+    ui: &mut Ui,
+    text: &str,
+    value: &mut Option<i32>,
+    range: RangeInclusive<Num>,
+) -> Response {
+    ui.horizontal(|ui| {
+        ui.label(text);
+        let mut has_value = value.is_some();
+        let mut value_ref = value.unwrap_or(1);
+        ui.checkbox(&mut has_value, "");
+        if has_value && value.is_none() {
+            *value = Some(1);
+        } else if !has_value && value.is_some() {
+            *value = None;
+        }
+        let response = ui.add_enabled(has_value, DragValue::new(&mut value_ref).clamp_range(range));
+        if has_value {
+            *value = Some(value_ref);
+        }
+        response
+    })
+    .inner
+}
+
 impl MyTabViewer<'_> {
-    fn draw_extra_hat_ui(&mut self, ui: &mut Ui, hat: &mut Extra) {}
-    fn draw_wings_ui(&mut self, ui: &mut Ui, hat: &mut Wings) {}
-    fn draw_flying_pet_ui(&mut self, ui: &mut Ui, hat: &mut FlyingPet) {}
+    fn draw_extra_hat_ui(&mut self, ui: &mut Ui, hat: &mut Extra) {
+        ScrollArea::new([true, true])
+            .drag_to_scroll(false)
+            .show(ui, |ui| {
+                ui.allocate_space((ui.available_width(), 1.0).into());
+                ui.heading("Extra hat");
+                ivec2_ui(
+                    ui,
+                    &mut hat.base_mut().frame_size,
+                    hats::MIN_FRAME_SIZE..=hats::MAX_EXTRA_HAT_SIZE.x,
+                    hats::MIN_FRAME_SIZE..=hats::MAX_EXTRA_HAT_SIZE.y,
+                    "Frame Size",
+                );
+            });
+    }
+    fn draw_wings_ui(&mut self, ui: &mut Ui, hat: &mut Wings) {
+        ScrollArea::new([true, true])
+            .drag_to_scroll(false)
+            .show(ui, |ui| {
+                let frames_amount = hat.frames_amount();
+                let anim = &mut hat.animations[0];
+                ui.allocate_space((ui.available_width(), 1.0).into());
+                ui.heading("Wings");
+                ui.horizontal(|ui| {
+                    ui.label("Delay");
+                    if ui
+                        .add(DragValue::new(&mut anim.delay).clamp_range(1..=255))
+                        .changed()
+                    {
+                        hat.auto_anim_speed = Some(anim.delay);
+                    }
+                    let plus = Button::new("+").min_size(Vec2::splat(18.0));
+                    let minus = Button::new("-").min_size(Vec2::splat(18.0));
+                    if ui.add(minus).clicked() {
+                        anim.delay -= 1;
+                        hat.auto_anim_speed = Some(anim.delay);
+                    } else if ui.add(plus).clicked() {
+                        anim.delay += 1;
+                        hat.auto_anim_speed = Some(anim.delay);
+                    }
+                });
+                drag_value_with_checkbox(
+                    ui,
+                    "Glide frame",
+                    &mut hat.auto_glide_frame,
+                    1..=frames_amount,
+                );
+                drag_value_with_checkbox(
+                    ui,
+                    "Idle frame",
+                    &mut hat.auto_idle_frame,
+                    1..=frames_amount,
+                );
+                ivec2_ui(
+                    ui,
+                    &mut hat.base_mut().frame_size,
+                    hats::MIN_FRAME_SIZE..=hats::MAX_FRAME_SIZE,
+                    hats::MIN_FRAME_SIZE..=hats::MAX_FRAME_SIZE,
+                    "Frame Size",
+                );
+                ivec2_ui(
+                    ui,
+                    &mut hat.crouch_offset,
+                    0..=255,
+                    0..=255,
+                    "Crouch offset",
+                );
+                ivec2_ui(
+                    ui,
+                    &mut hat.ragdoll_offset,
+                    0..=255,
+                    0..=255,
+                    "Ragdoll offset",
+                );
+                ivec2_ui(ui, &mut hat.slide_offset, 0..=255, 0..=255, "Slide offset");
+                ivec2_ui(
+                    ui,
+                    &mut hat.general_offset,
+                    0..=255,
+                    0..=255,
+                    "Global offset",
+                );
+            });
+    }
+    fn draw_flying_pet_ui(&mut self, ui: &mut Ui, hat: &mut FlyingPet) {
+        ScrollArea::new([true, true])
+            .drag_to_scroll(false)
+            .show(ui, |ui| {
+                ui.allocate_space((ui.available_width(), 1.0).into());
+                ui.heading("Flying pet");
+                ivec2_ui(
+                    ui,
+                    &mut hat.base_mut().frame_size,
+                    hats::MIN_FRAME_SIZE..=hats::MAX_FRAME_SIZE,
+                    hats::MIN_FRAME_SIZE..=hats::MAX_FRAME_SIZE,
+                    "Frame Size",
+                );
+                drag_value_with_checkbox(ui, "Distance", &mut hat.pet_base.distance, 0..=255);
+                ui.checkbox(&mut hat.pet_base.flipped, "Flip");
+                self.draw_animations_ui(hat, ui);
+            });
+    }
     fn draw_walking_pet_ui(&mut self, ui: &mut Ui, hat: &mut WalkingPet) {}
     fn draw_wereable_hat_ui(&mut self, ui: &mut Ui, hat: &mut Wereable) {
         ScrollArea::new([true, true])
@@ -133,17 +277,13 @@ impl MyTabViewer<'_> {
                 ui.allocate_space((ui.available_width(), 1.0).into());
                 ui.heading("Wereable hat")
                     .on_hover_text("This a wereable hat.\nIt can do stuff.");
-                ui.horizontal(|ui| {
-                    ui.label("X:");
-                    ui.add(
-                        DragValue::new(&mut hat.base.frame_size.x)
-                            .speed(0.2)
-                            .clamp_range(hats::MIN_FRAME_SIZE..=hats::MAX_FRAME_SIZE),
-                    );
-                    ui.label("Y:");
-                    ui.add(DragValue::new(&mut hat.base.frame_size.y).clamp_range(32..=64));
-                    ui.label("Frame size");
-                });
+                ivec2_ui(
+                    ui,
+                    &mut hat.base_mut().frame_size,
+                    hats::MIN_FRAME_SIZE..=hats::MAX_FRAME_SIZE,
+                    hats::MIN_FRAME_SIZE..=hats::MAX_FRAME_SIZE,
+                    "Frame Size",
+                );
                 egui::ComboBox::from_label("Quack Frame Link State")
                     .selected_text(format!("{}", hat.link_frame_state))
                     .show_ui(ui, |ui| {
@@ -245,7 +385,7 @@ impl MyTabViewer<'_> {
                 ui.horizontal(|ui| {
                     ui.add(egui::DragValue::new(&mut anim.new_frame)).changed();
                     if ui.button("Add Frame").clicked()
-                        && (0..(frames_amount - 1)).contains(&anim.new_frame.to_u32().unwrap_or(0))
+                        && (1..=frames_amount).contains(&anim.new_frame.to_u32().unwrap_or(0))
                     {
                         anim.frames.push((anim.new_frame - 1).into());
                         anim.new_frame += 1;
@@ -353,6 +493,7 @@ impl MyTabViewer<'_> {
         }
     }
 }
+
 impl TabViewer for MyTabViewer<'_> {
     type Tab = Tab;
 
@@ -398,7 +539,7 @@ impl TabViewer for MyTabViewer<'_> {
         });
         let selected_hat_id = inner.selected_hat_id.unwrap();
         let hat_name = inner.title.clone();
-        let selected_hat = &mut inner.hat.element_by_id_mut(selected_hat_id).unwrap();
+        let selected_hat = &mut inner.hat.element_from_id_mut(selected_hat_id).unwrap();
         let frame_size = selected_hat.base().frame_size;
         let animations = selected_hat.animations().map(|a| a.to_vec());
         self.draw_hat_ui(selected_hat, ui);

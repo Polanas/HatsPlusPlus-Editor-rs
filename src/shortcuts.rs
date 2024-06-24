@@ -9,7 +9,7 @@ pub const NEW: KeyboardShortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::N)
 pub const SAVE: KeyboardShortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::S);
 pub const SAVE_AS: KeyboardShortcut = KeyboardShortcut::new(
     Modifiers {
-        ctrl: true,
+        ctrl: false,
         shift: true,
         alt: false,
         mac_cmd: false,
