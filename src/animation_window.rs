@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use bevy_math::{vec2, IVec2, Vec2};
-use eframe::egui::{Button, CollapsingHeader, DragValue, Id, ImageButton, RichText, Ui, Window};
+use eframe::egui::{
+    Button, CollapsingHeader, DragValue, Id, ImageButton, Pos2, Rect, RichText, Ui, Window,
+};
 use eframe::glow::Context;
 use eframe::glow::{self, HasContext};
 use once_cell::sync::Lazy;
@@ -26,6 +28,7 @@ pub struct AnimationWindow {
 
 #[derive(Debug, Clone, Copy)]
 struct Uniforms {
+    offset: Vec2,
     time: f32,
     frames_amount: Vec2,
     frame_size: Vec2,
@@ -39,6 +42,7 @@ fn draw_texture(gl: &Context, texture: crate::texture::Inner, shader: Shader, un
         shader.set_f32(gl, "current_frame", uniforms.current_frame);
         shader.set_f32(gl, "time", uniforms.time);
         shader.set_vec2(gl, "frame_size", uniforms.frame_size);
+        shader.set_vec2(gl, "offset", uniforms.offset);
         shader.set_vec2(gl, "frames_amount", uniforms.frames_amount);
         gl.bind_texture(glow::TEXTURE_2D, Some(texture.native));
         gl.bind_vertex_array(Some(vertex_array));
@@ -101,8 +105,14 @@ impl AnimationWindow {
             } else {
                 data.hat_name
             };
+        let window_id = Id::new(data.texture.path().unwrap());
+        let offset = data
+            .ui
+            .ctx()
+            .memory_mut(|m| m.area_rect(window_id))
+            .unwrap_or(Rect::from_min_max(Pos2::ZERO, Pos2::ZERO));
         Window::new(hat_name)
-            .id(Id::new(data.texture.path().unwrap()))
+            .id(window_id)
             .resizable(false)
             .max_width(data.frame_size.x as f32 * TEXTURES_SCALE_FACTOR)
             .show(data.ui.ctx(), |ui| {
@@ -148,6 +158,7 @@ impl AnimationWindow {
                     })
                     .unwrap_or_default() as f32;
                 let uniforms = Uniforms {
+                    offset: (offset.max.x, offset.min.y).into(),
                     current_frame,
                     frames_amount: Vec2::new(
                         (data.texture.width() / data.frame_size.x) as f32,

@@ -7,6 +7,7 @@ uniform vec2 frames_amount;
 uniform vec2 frame_size;
 uniform float current_frame;
 uniform float time;
+uniform vec2 offset;
 
 vec2 index_to_position(float index, float width) {
     float x = round(mod(index, width));
@@ -25,9 +26,10 @@ void main()
     vec2 pos = index_to_position(current_frame, frames_amount.x);
     vec2 pixel_size = 1.0 / tex_size;
     uv.y = 1 - uv.y;
-    uv = floor(uv / pixel_size) * pixel_size;
     vec2 grid_uv = uv;
-    grid_uv += .5 * pixel_size;
+    uv = floor(uv / pixel_size) * pixel_size;
+    vec2 correct_offset = floor(offset) / frame_size / 5.0;
+    grid_uv += floor(offset) / frame_size / 20;
     grid_uv /= tex_size;
     // adjust uv to be in the center of a pixel 
     uv += .5 * pixel_size;
