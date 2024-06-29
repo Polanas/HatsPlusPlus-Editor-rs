@@ -78,8 +78,10 @@ impl RenderData {
         let vertices: [f32; 12] = [
             -1.0, -1.0, -1.0, 1.0, 1.0, -1.0, 1.0, -1.0, -1.0, 1.0, 1.0, 1.0,
         ];
+        let frag = include_str!("room_shader/frag.glsl");
+        let vert = include_str!("room_shader/vert.glsl");
         let shader =
-            Shader::from_path(gl, "src/room_shader/frag.glsl", "src/room_shader/vert.glsl")
+            Shader::from_text_with_path(gl, "src/room_shader/frag.glsl",frag, "src/room_shader/vert.glsl", vert)
                 .unwrap();
         let texture = Texture::with_size(gl, RENDERER_SCREEN_SIZE).unwrap();
         unsafe {

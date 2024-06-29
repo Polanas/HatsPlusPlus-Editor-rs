@@ -538,8 +538,10 @@ impl MyEguiApp {
         let language = config.language;
         let gl = cc.gl.as_ref().unwrap().as_ref();
         let mut shader_reloader = ShaderReloader::new();
+        let frag = include_str!("anim_shader/frag.glsl");
+        let vert = include_str!("anim_shader/vert.glsl");
         let animation_shader =
-            Shader::from_path(gl, "src/anim_shader/frag.glsl", "src/anim_shader/vert.glsl")
+            Shader::from_text_with_path(gl, "src/anim_shader/frag.glsl", frag, "src/anim_shader/vert.glsl", vert)
                 .unwrap();
         shader_reloader.add_shader(&animation_shader);
         let ui_text: Rc<UiText> = UiText::new(language, "text.json").into();
