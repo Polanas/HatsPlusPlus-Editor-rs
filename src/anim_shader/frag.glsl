@@ -6,6 +6,7 @@ uniform sampler2D texture;
 uniform vec2 frames_amount;
 uniform vec2 frame_size;
 uniform float current_frame;
+uniform float time;
 
 vec2 index_to_position(float index, float width) {
     float x = round(mod(index, width));
@@ -29,12 +30,7 @@ void main()
     grid_uv += .5 * pixel_size;
     grid_uv /= tex_size;
     // adjust uv to be in the center of a pixel 
-    if (int(mod(frame_size.x,2.0)) != 0 || int(mod(frame_size.y,2.0)) != 0) {
-        uv += .5 * pixel_size.xy;
-    }
-    else {
-        uv.y += .5 * pixel_size.y;
-    }
+    uv += .5 * pixel_size;
     // now uv covers one pixel
     uv /= tex_size;
     // move to current frame

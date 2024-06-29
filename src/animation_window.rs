@@ -26,6 +26,7 @@ pub struct AnimationWindow {
 
 #[derive(Debug, Clone, Copy)]
 struct Uniforms {
+    time: f32,
     frames_amount: Vec2,
     frame_size: Vec2,
     current_frame: f32,
@@ -36,6 +37,7 @@ fn draw_texture(gl: &Context, texture: crate::texture::Inner, shader: Shader, un
     unsafe {
         shader.activate(gl);
         shader.set_f32(gl, "current_frame", uniforms.current_frame);
+        shader.set_f32(gl, "time", uniforms.time);
         shader.set_vec2(gl, "frame_size", uniforms.frame_size);
         shader.set_vec2(gl, "frames_amount", uniforms.frames_amount);
         gl.bind_texture(glow::TEXTURE_2D, Some(texture.native));
@@ -43,8 +45,8 @@ fn draw_texture(gl: &Context, texture: crate::texture::Inner, shader: Shader, un
         gl.draw_arrays(glow::TRIANGLES, 0, 6);
     }
 }
-
 pub struct AnimationWindowFrameData<'a> {
+    pub time: f32,
     pub ui: &'a Ui,
     pub shader: Shader,
     pub hertz: f32,
@@ -152,6 +154,7 @@ impl AnimationWindow {
                         (data.texture.height() / data.frame_size.y) as f32,
                     ),
                     frame_size: Vec2::new(data.frame_size.x as f32, data.frame_size.y as f32),
+                    time: data.time,
                 };
                 let inner = data.texture.clone().inner();
                 let callback = eframe::egui::PaintCallback {

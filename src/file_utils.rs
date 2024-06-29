@@ -1,6 +1,6 @@
 use std::path::Path;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Ms(pub u128);
 
 pub fn file_modified_time(path: impl AsRef<Path>) -> Option<Ms> {

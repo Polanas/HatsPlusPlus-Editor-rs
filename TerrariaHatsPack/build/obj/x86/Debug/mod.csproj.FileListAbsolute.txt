@@ -1,0 +1,6 @@
+C:\Users\ivanh\AppData\Roaming\DuckGame\Mods\TerrariaHatsPack\build\obj\x86\Debug\mod.csproj.AssemblyReference.cache
+C:\Users\ivanh\AppData\Roaming\DuckGame\Mods\TerrariaHatsPack\build\obj\x86\Debug\mod.csproj.CoreCompileInputs.cache
+C:\Users\ivanh\AppData\Roaming\DuckGame\Mods\TerrariaHatsPack\build\obj\x86\Debug\TerrariaHatsPack.dll
+C:\Users\ivanh\AppData\Roaming\DuckGame\Mods\TerrariaHatsPack\build\obj\x86\Debug\TerrariaHatsPack.pdb
+C:\Users\ivanh\AppData\Roaming\DuckGame\Mods\TerrariaHatsPack\TerrariaHatsPack.dll
+C:\Users\ivanh\AppData\Roaming\DuckGame\Mods\TerrariaHatsPack\TerrariaHatsPack.pdb

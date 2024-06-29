@@ -104,35 +104,14 @@ pub enum AnimationWindowAction {
 }
 
 pub struct FrameData<'a> {
+    texture_reloader: &'a mut TextureReloader,
+    time: f32,
     anim_window_action: AnimationWindowAction,
     gl: &'a Context,
     shader: Shader,
-    time: f32,
     hertz: u32,
     ui_text: Rc<UiText>,
     config: &'a mut AppConfig,
-}
-
-impl<'a> FrameData<'a> {
-    pub fn new(
-        gl: &'a Context,
-        shader: Shader,
-        time: f32,
-        hertz: u32,
-        ui_text: Rc<UiText>,
-        config: &'a mut AppConfig,
-        anim_window_action: AnimationWindowAction,
-    ) -> Self {
-        Self {
-            config,
-            gl,
-            shader,
-            time,
-            hertz,
-            ui_text,
-            anim_window_action,
-        }
-    }
 }
 
 trait ShortcutPressed {
@@ -278,99 +257,108 @@ impl MyEguiApp {
     }
 
     fn draw_elements_menu(&mut self, ui: &mut Ui, gl: &Context) {
-        let text = self.ui_text.clone();
-        let Some(last_tab) = self.last_interacted_tab_mut() else {
-            return;
-        };
-        let mut inner = last_tab.inner.borrow_mut();
-        // no FUCKING way this works
-        macro_rules! try_add_hat {
-            ($ui:ident, $get_hat:ident, $hat_type:ident) => {
-                if inner.hat.$get_hat().is_none()
-                    && $ui
-                        .button(hats::HatType::$hat_type.get_display_name(&text))
-                        .clicked()
-                {
-                    if let Some(path) = rfd::FileDialog::new().pick_file() {
-                        if let Ok(hat) = $hat_type::load_from_path(path, gl) {
-                            inner
-                                .hat
-                                .add_unique_hat(hats::HatType::$hat_type, Box::new(hat));
-                            $ui.close_menu();
-                        }
-                    }
-                }
+        let mut new_texture = None;
+        {
+            let text = self.ui_text.clone();
+            let Some(last_tab) = self.last_interacted_tab_mut() else {
+                return;
             };
-        }
-        let is_home = inner.is_home_tab;
-        ui.add_enabled_ui(!is_home, |ui| {
-            ui.collapsing(text.get("Add"), |ui| {
-                try_add_hat!(ui, wereable, Wereable);
-                try_add_hat!(ui, wings, Wings);
-                try_add_hat!(ui, extra, Extra);
-                try_add_hat!(ui, preview, Preview);
-                if inner.hat.preview().is_none()
-                    && ui
-                        .add_enabled(
-                            inner.hat.can_add_pets(),
-                            Button::new(text.get("Walking pet")),
-                        )
-                        .clicked()
-                {
-                    if let Some(path) = rfd::FileDialog::new().pick_file() {
-                        if let Ok(hat) = WalkingPet::load_from_path(path, gl) {
-                            inner.hat.add_pet(Box::new(hat));
-                            ui.close_menu();
-                        }
-                    }
-                }
-                if inner.hat.preview().is_none()
-                    && ui
-                        .add_enabled(
-                            inner.hat.can_add_pets(),
-                            Button::new(text.get("Flying pet")),
-                        )
-                        .clicked()
-                {
-                    if let Some(path) = rfd::FileDialog::new().pick_file() {
-                        if let Ok(hat) = FlyingPet::load_from_path(path, gl) {
-                            inner.hat.add_pet(Box::new(hat));
-                            ui.close_menu();
-                        }
-                    }
-                }
-            });
-            ui.add_enabled_ui(inner.hat.has_elements(), |ui| {
-                ui.collapsing(text.get("Select"), |ui| {
-                    for elements in inner.hat.unique_elemets.values() {
-                        let hat_type = elements.base().hat_type;
-                        if ui
-                            .button(hat_type.get_display_name(text.as_ref()))
+            let mut inner = last_tab.inner.borrow_mut();
+            // no FUCKING way this works
+            macro_rules! try_add_hat {
+                ($ui:ident, $get_hat:ident, $hat_type:ident) => {
+                    if inner.hat.$get_hat().is_none()
+                        && $ui
+                            .button(hats::HatType::$hat_type.get_display_name(&text))
                             .clicked()
-                        {
-                            inner.selected_hat_id =
-                                Some(inner.hat.id_from_hat_type(hat_type).unwrap());
-                            ui.close_menu();
-                            break;
+                    {
+                        if let Some(path) = rfd::FileDialog::new().pick_file() {
+                            if let Ok(hat) = $hat_type::load_from_path(path, gl) {
+                                new_texture = Some(hat.texture().unwrap().clone());
+                                inner
+                                    .hat
+                                    .add_unique_hat(hats::HatType::$hat_type, Box::new(hat));
+                                $ui.close_menu();
+                            }
                         }
                     }
-                    for pet in inner.hat.pets.iter() {
-                        let size = pet.base().hat_area_size;
-                        let button_name = format!(
-                            "{0} ({1}, {2})",
-                            pet.base().hat_type.get_display_name(text.as_ref()),
-                            size.x,
-                            size.y
-                        );
-                        if ui.button(button_name).clicked() {
-                            inner.selected_hat_id = Some(pet.id());
-                            ui.close_menu();
-                            break;
+                };
+            }
+            let is_home = inner.is_home_tab;
+            ui.add_enabled_ui(!is_home, |ui| {
+                ui.collapsing(text.get("Add"), |ui| {
+                    try_add_hat!(ui, wereable, Wereable);
+                    try_add_hat!(ui, wings, Wings);
+                    try_add_hat!(ui, extra, Extra);
+                    try_add_hat!(ui, preview, Preview);
+                    if inner.hat.preview().is_none()
+                        && ui
+                            .add_enabled(
+                                inner.hat.can_add_pets(),
+                                Button::new(text.get("Walking pet")),
+                            )
+                            .clicked()
+                    {
+                        if let Some(path) = rfd::FileDialog::new().pick_file() {
+                            if let Ok(hat) = WalkingPet::load_from_path(path, gl) {
+                                new_texture = Some(hat.texture().unwrap().clone());
+                                inner.hat.add_pet(Box::new(hat));
+                                ui.close_menu();
+                            }
                         }
                     }
+                    if inner.hat.preview().is_none()
+                        && ui
+                            .add_enabled(
+                                inner.hat.can_add_pets(),
+                                Button::new(text.get("Flying pet")),
+                            )
+                            .clicked()
+                    {
+                        if let Some(path) = rfd::FileDialog::new().pick_file() {
+                            if let Ok(hat) = FlyingPet::load_from_path(path, gl) {
+                                new_texture = Some(hat.texture().unwrap().clone());
+                                inner.hat.add_pet(Box::new(hat));
+                                ui.close_menu();
+                            }
+                        }
+                    }
+                });
+                ui.add_enabled_ui(inner.hat.has_elements(), |ui| {
+                    ui.collapsing(text.get("Select"), |ui| {
+                        for elements in inner.hat.unique_elemets.values() {
+                            let hat_type = elements.base().hat_type;
+                            if ui
+                                .button(hat_type.get_display_name(text.as_ref()))
+                                .clicked()
+                            {
+                                inner.selected_hat_id =
+                                    Some(inner.hat.id_from_hat_type(hat_type).unwrap());
+                                ui.close_menu();
+                                break;
+                            }
+                        }
+                        for pet in inner.hat.pets.iter() {
+                            let size = pet.base().hat_area_size;
+                            let button_name = format!(
+                                "{0} ({1}, {2})",
+                                pet.base().hat_type.get_display_name(text.as_ref()),
+                                size.x,
+                                size.y
+                            );
+                            if ui.button(button_name).clicked() {
+                                inner.selected_hat_id = Some(pet.id());
+                                ui.close_menu();
+                                break;
+                            }
+                        }
+                    })
                 })
-            })
-        });
+            });
+        }
+        if let Some(texture) = new_texture {
+            self.texture_reloader.add_texture(&texture);
+        }
     }
 
     fn open_home_tab(&mut self) {
@@ -460,14 +448,14 @@ impl MyEguiApp {
             return None;
         }
         inner.hat.path = Some(dir_path.clone());
-        let result = last_tab.inner.borrow_mut().hat.save(dir_path);
+        let result = inner.hat.save(&dir_path);
+        inner.title = dir_path.file_stem_string().unwrap();
         result.ok()
     }
-    //TODO: change tab's name after save
     fn save_hat(&mut self) -> Option<()> {
         let last_tab = self.last_interacted_tab_mut()?;
-        let hat = &mut last_tab.inner.borrow_mut().hat;
-        hat.save(hat.path.as_ref()?).ok()
+        let inner = &mut last_tab.inner.borrow_mut();
+        inner.hat.save(inner.hat.path.as_ref()?).ok()
     }
 
     fn button_shortcut(
@@ -625,7 +613,7 @@ impl MyEguiApp {
         self.time += self.delta_time();
         ctx.request_repaint();
         ctx.set_pixels_per_point(1.5);
-        self.texture_reloader.try_reload(gl);
+        self.texture_reloader.update(gl);
         if cfg!(debug_assertions) {
             self.shader_reloader.try_reload(gl);
         }
@@ -690,15 +678,16 @@ impl eframe::App for MyEguiApp {
             let anim_window_action = MyEguiApp::animation_window_action(ui);
             self.tabs.ui(
                 ui,
-                FrameData::new(
+                FrameData {
                     gl,
-                    self.animation_shader.clone(),
-                    self.time,
-                    self.hertz,
-                    self.ui_text.clone(),
-                    Rc::get_mut(&mut self.config).unwrap(),
+                    shader: self.animation_shader.clone(),
+                    hertz: self.hertz,
+                    ui_text: self.ui_text.clone(),
+                    config: Rc::get_mut(&mut self.config).unwrap(),
                     anim_window_action,
-                ),
+                    time: self.time,
+                    texture_reloader: &mut self.texture_reloader,
+                },
             );
             self.execute_shortcuts(gl, ui);
             let mut hat_event_bus = tabs::HAT_EVENT_BUS.lock().unwrap();

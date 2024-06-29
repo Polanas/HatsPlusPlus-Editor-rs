@@ -33,6 +33,9 @@ macro_rules! impl_abstract_hat {
             fn base(&self) -> &HatBase {
                 &self.$base_name
             }
+            fn texture_mut(&mut self) -> Option<&mut Texture> {
+                self.$base_name.texture.as_mut()
+            }
             fn texture(&self) -> Option<&Texture> {
                 self.$base_name.texture.as_ref()
             }
@@ -62,6 +65,9 @@ macro_rules! impl_abstract_hat {
             }
             fn texture(&self) -> Option<&Texture> {
                 self.$base_name.texture.as_ref()
+            }
+            fn texture_mut(&mut self) -> Option<&mut Texture> {
+                self.$base_name.texture.as_mut()
             }
             fn animations(&self) -> Option<&[Animation]> {
                 None
@@ -97,6 +103,9 @@ const ROOM_NAME: &str = "room";
 const WALKING_PET_NAME: &str = "walkingpet";
 const FLYING_PET_NAME: &str = "flyingpet";
 const WINGS_NAME: &str = "wings";
+///TODO: change these to more reasonable values
+pub const DEFAULT_PET_SPEED: i32 = 10;
+pub const DEFAULT_PET_DISTANCE: i32 = 10;
 pub const MAX_PETS: usize = 5;
 pub const DEFAULT_WINGS_IDLE_FRAME: i32 = 0;
 pub const DEFAULT_AUTO_SPEED: i32 = 4;
@@ -122,6 +131,7 @@ pub trait AbstractHat: Downcast + std::fmt::Debug {
     #[allow(dead_code)]
     fn base_mut(&mut self) -> &mut HatBase;
     fn texture(&self) -> Option<&Texture>;
+    fn texture_mut(&mut self) -> Option<&mut Texture>;
     fn animations(&self) -> Option<&[Animation]>;
     fn animations_mut(&mut self) -> Option<&mut [Animation]>;
     fn frames_amount(&self) -> u32;
@@ -308,12 +318,14 @@ pub struct HatBase {
     pub id: HatElementId,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Derivative)]
+#[derivative(Default)]
 pub struct FlyingPet {
     pub pet_base: PetBase,
     pub hat_base: HatBase,
     pub changes_angle: bool,
-    pub speed: Option<i32>,
+    #[derivative(Default(value = "DEFAULT_PET_SPEED"))]
+    pub speed: i32,
 }
 impl LoadHat for FlyingPet {
     fn load_from_name_and_size(
@@ -341,7 +353,7 @@ impl LoadHat for FlyingPet {
         };
         for (i, pixel) in metapixels.iter().enumerate() {
             match pixel.get_type() {
-                MetapixelType::PetDistance => hat.pet_base.distance = Some(pixel.g as i32),
+                MetapixelType::PetDistance => hat.pet_base.distance = pixel.g as i32,
                 MetapixelType::PetNoFlip => hat.pet_base.flipped = false,
                 MetapixelType::FrameSize => {
                     hat.hat_base.frame_size = IVec2::new(pixel.g as i32, pixel.b as i32)
@@ -353,7 +365,7 @@ impl LoadHat for FlyingPet {
                 }
                 MetapixelType::IsBigHat => hat.pet_base.is_big = true,
                 MetapixelType::PetChangesAngle => hat.changes_angle = true,
-                MetapixelType::PetSpeed => hat.speed = Some(pixel.g as i32),
+                MetapixelType::PetSpeed => hat.speed = pixel.g as i32,
                 _ => (),
             };
         }
@@ -392,7 +404,7 @@ impl LoadHat for WalkingPet {
         };
         for (i, pixel) in metapixels.iter().enumerate() {
             match pixel.get_type() {
-                MetapixelType::PetDistance => hat.pet_base.distance = Some(pixel.g as i32),
+                MetapixelType::PetDistance => hat.pet_base.distance = pixel.g as i32,
                 MetapixelType::PetNoFlip => hat.pet_base.flipped = false,
                 MetapixelType::FrameSize => {
                     hat.hat_base.frame_size = IVec2::new(pixel.g as i32, pixel.b as i32)
@@ -413,7 +425,8 @@ impl LoadHat for WalkingPet {
 #[derive(Debug, Derivative)]
 #[derivative(Default)]
 pub struct PetBase {
-    pub distance: Option<i32>,
+    #[derivative(Default(value = "DEFAULT_PET_DISTANCE"))]
+    pub distance: i32,
     #[derivative(Default(value = "true"))]
     pub flipped: bool,
     pub is_big: bool,
@@ -424,8 +437,8 @@ pub struct PetBase {
 impl GenMetapixels for FlyingPet {
     fn gen_metapixels(&self) -> Vec<Metapixel> {
         let mut metapixels = Metapixels::new();
-        if let Some(dist) = self.pet_base.distance {
-            metapixels.push(MetapixelType::PetDistance, dist as u8, 0);
+        if self.pet_base.distance != DEFAULT_PET_DISTANCE {
+            metapixels.push(MetapixelType::PetDistance, self.pet_base.distance as u8, 0);
         }
         if self.pet_base.flipped {
             metapixels.push(MetapixelType::PetNoFlip, 0, 0);
@@ -448,8 +461,8 @@ impl GenMetapixels for FlyingPet {
         if self.changes_angle {
             metapixels.push(MetapixelType::PetChangesAngle, 0, 0);
         }
-        if let Some(speed) = self.speed {
-            metapixels.push(MetapixelType::PetSpeed, speed as u8, 0);
+        if self.speed != DEFAULT_PET_SPEED {
+            metapixels.push(MetapixelType::PetSpeed, self.speed as u8, 0);
         }
 
         for anim in &self.pet_base.animations {
@@ -464,8 +477,8 @@ impl GenMetapixels for FlyingPet {
 impl GenMetapixels for WalkingPet {
     fn gen_metapixels(&self) -> Vec<Metapixel> {
         let mut metapixels = Metapixels::new();
-        if let Some(dist) = self.pet_base.distance {
-            metapixels.push(MetapixelType::PetDistance, dist as u8, 0);
+        if self.pet_base.distance != DEFAULT_PET_DISTANCE {
+            metapixels.push(MetapixelType::PetDistance, self.pet_base.distance as u8, 0);
         }
         if self.pet_base.flipped {
             metapixels.push(MetapixelType::PetNoFlip, 0, 0);
@@ -936,6 +949,12 @@ impl Hat {
         let path = self.path.as_ref()?;
         path.file_stem_string()
     }
+    pub fn hat_type_by_id(&self, id: HatElementId) -> Option<HatType> {
+        self.iter_all_elements()
+            .filter(|h| h.id() == id)
+            .map(|h| h.base().hat_type)
+            .next()
+    }
     pub fn id_from_hat_type(&self, hat_type: HatType) -> Option<HatElementId> {
         self.iter_all_elements()
             .filter(|h| h.base().hat_type == hat_type)
@@ -1046,8 +1065,19 @@ impl Hat {
             .get(&HatType::Wings)
             .and_then(|e| e.downcast_ref::<Wings>())
     }
-    pub fn remove_pet(&mut self, index: usize) {
-        self.pets.remove(index);
+    pub fn replace_element(&mut self, id: HatElementId, element: impl AbstractHat) {
+        self.remove_element(id);
+        self.add_element(element);
+    }
+    pub fn remove_element(&mut self, id: HatElementId) {
+        self.unique_elemets.retain(|_, e| e.id() != id);
+        self.pets.retain(|e| e.id() != id);
+    }
+    pub fn add_element(&mut self, element: impl AbstractHat) {
+        match element.base().hat_type {
+            HatType::WalkingPet | HatType::FlyingPet => self.add_pet(Box::new(element)),
+            _ => self.add_unique_hat(element.base().hat_type, Box::new(element)),
+        };
     }
     pub fn add_pet(&mut self, hat: Box<dyn AbstractHat>) {
         self.pets.push(hat);
@@ -1056,11 +1086,6 @@ impl Hat {
         let is_specified = !matches!(hat_type, HatType::Unspecified);
         assert!(is_specified);
         self.unique_elemets.insert(hat_type, hat);
-    }
-    pub fn remove_unique_hat(&mut self, hat_type: HatType) {
-        let is_specified = !matches!(hat_type, HatType::Unspecified);
-        assert!(is_specified);
-        self.unique_elemets.remove(&hat_type);
     }
     pub fn first_element(&self) -> Option<(&dyn AbstractHat, HatType)> {
         let first_unique = self
@@ -1103,8 +1128,8 @@ impl Hat {
             };
 
             let name_and_size = get_name_and_size(&file_name);
-
-            match name_and_size.name.to_lowercase().as_str() {
+            let name_lowercase = name_and_size.name.to_lowercase();
+            match name_lowercase.as_str() {
                 ROOM_NAME => {
                     if let Ok(room) =
                         RoomHat::load_from_name_and_size(entry.path(), name_and_size, gl)
@@ -1126,14 +1151,14 @@ impl Hat {
                         hat.add_unique_hat(HatType::Wings, Box::new(wings));
                     }
                 }
-                FLYING_PET_NAME => {
+                _ if name_lowercase.contains(FLYING_PET_NAME) => {
                     if let Ok(pet) =
                         FlyingPet::load_from_name_and_size(entry.path(), name_and_size, gl)
                     {
                         hat.add_pet(Box::new(pet));
                     }
                 }
-                WALKING_PET_NAME => {
+                _ if name_lowercase.contains(WALKING_PET_NAME) => {
                     if let Ok(pet) =
                         WalkingPet::load_from_name_and_size(entry.path(), name_and_size, gl)
                     {

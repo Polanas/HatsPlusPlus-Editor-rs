@@ -100,6 +100,21 @@ impl Texture {
             })
         }
     }
+
+    pub fn replace_from_path(&mut self, gl: &Context, path: impl AsRef<Path>) -> Option<()> {
+        self.delete(gl);
+        {
+            let new_texture = Texture::from_path(gl, path).ok()?;
+            let binding = self.inner_rc().clone();
+            let current_texture = &mut *binding.borrow_mut();
+            current_texture.native = new_texture.native();
+            current_texture.width = new_texture.width();
+            current_texture.height = new_texture.height();
+            self.path = new_texture.path.clone();
+        }
+        Some(())
+    }
+
     pub fn width(&self) -> i32 {
         self.inner.borrow().width
     }

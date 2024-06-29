@@ -9,8 +9,10 @@ use eframe::egui::{
     WidgetText,
 };
 use eframe::emath::Numeric;
+use egui_dnd::DragDropItem;
 
 use crate::animations::Frame;
+use crate::texture::Texture;
 use crate::{animation_window, animations, hats, prelude::*};
 
 use eframe::egui::{DragValue, Ui};
@@ -20,10 +22,14 @@ use num_traits::{Saturating, SaturatingSub, ToPrimitive};
 use crate::animation_window::{AnimationWindow, AnimationWindowFrameData};
 use crate::event_bus::EventBus;
 use crate::frames_from_range::frames_from_range;
-use crate::hats::{AbstractHat, Hat, HatElementId, HatType, LinkFrameState, DEFAULT_AUTO_SPEED};
+use crate::hats::{
+    AbstractHat, Hat, HatElementId, HatType, LinkFrameState, LoadHat, DEFAULT_AUTO_SPEED,
+    DEFAULT_PET_DISTANCE, DEFAULT_PET_SPEED,
+};
 use crate::hats::{Extra, FlyingPet, WalkingPet, Wereable, Wings};
 use crate::renderer::Renderer;
 use crate::{egui_utils, FrameData};
+
 pub enum NewHatEvent {
     Opened(std::path::PathBuf),
     New,
@@ -76,6 +82,7 @@ pub struct TabInner {
     pub selected_hat_id: Option<HatElementId>,
     pub renderer: Option<Renderer>,
     pub animation_window: AnimationWindow,
+    pub keep_metapixels: bool,
 }
 
 #[derive(Debug)]
@@ -92,6 +99,7 @@ impl Tab {
             selected_hat_id: None,
             renderer: None,
             animation_window: AnimationWindow::new(),
+            keep_metapixels: true,
         });
         Self { inner }
     }
@@ -104,10 +112,12 @@ impl Tab {
             selected_hat_id: None,
             renderer: None,
             animation_window: AnimationWindow::new(),
+            keep_metapixels: true,
         });
         Self { inner }
     }
 }
+
 #[derive(Default)]
 struct AnimationChanges {
     added: Option<AnimationType>,
@@ -140,191 +150,419 @@ fn ivec2_ui<Num: Numeric>(
         ui.label(text);
     });
 }
-//TODO: rework optional metapixels so that they just aren't set if the value is default (and remove
-//this checkbox, add "Reset" button instead)
-fn drag_value_with_checkbox<Num: Numeric>(
-    ui: &mut Ui,
-    text: &str,
-    value: &mut Option<i32>,
-    range: RangeInclusive<Num>,
-) -> Response {
-    ui.horizontal(|ui| {
-        ui.label(text);
-        let mut has_value = value.is_some();
-        let mut value_ref = value.unwrap_or(1);
-        ui.checkbox(&mut has_value, "");
-        if has_value && value.is_none() {
-            *value = Some(1);
-        } else if !has_value && value.is_some() {
-            *value = None;
-        }
-        let response = ui.add_enabled(has_value, DragValue::new(&mut value_ref).clamp_range(range));
-        if has_value {
-            *value = Some(value_ref);
-        }
-        response
-    })
-    .inner
-}
 
 impl MyTabViewer<'_> {
-    fn draw_extra_hat_ui(&mut self, ui: &mut Ui, hat: &mut Extra) {
+    fn remove_element_ui(&mut self, ui: &mut Ui) -> bool {
+        egui_utils::red_button(
+            ui,
+            "Remove element",
+            self.frame_data.config.is_light_theme(),
+        )
+        .clicked()
+    }
+    fn draw_extra_hat_ui(&mut self, ui: &mut Ui, inner: &mut TabInner) {
+        let hat = &mut inner.hat;
+        let extra = hat.extra_mut().unwrap();
+        let id = extra.id();
+        let mut path = None;
+        let mut remove = false;
         ScrollArea::new([true, true])
             .drag_to_scroll(false)
             .show(ui, |ui| {
                 ui.allocate_space((ui.available_width(), 1.0).into());
                 ui.heading("Extra hat");
+                ui.horizontal(|ui| {
+                    if ui.button("Set texture").clicked() {
+                        path = rfd::FileDialog::new().pick_file();
+                    }
+                    ui.checkbox(&mut inner.keep_metapixels, "Keep metapixels");
+                });
+                remove = self.remove_element_ui(ui);
                 ivec2_ui(
                     ui,
-                    &mut hat.base_mut().frame_size,
+                    &mut extra.base_mut().frame_size,
                     hats::MIN_FRAME_SIZE..=hats::MAX_EXTRA_HAT_SIZE.x,
                     hats::MIN_FRAME_SIZE..=hats::MAX_EXTRA_HAT_SIZE.y,
                     "Frame Size",
                 );
             });
+        let _: Option<()> = try {
+            let path = path?;
+            if !inner.keep_metapixels {
+                let new_hat = Extra::load_from_path(path, self.frame_data.gl).ok()?;
+                inner.selected_hat_id = Some(new_hat.base().id);
+                self.frame_data
+                    .texture_reloader
+                    .add_texture(&new_hat.texture().unwrap().clone());
+                hat.replace_element(id, new_hat);
+            } else {
+                let texture = extra.texture_mut()?;
+                let old_program = texture.native();
+                texture.replace_from_path(self.frame_data.gl, path);
+                self.frame_data
+                    .texture_reloader
+                    .update_texture_program(old_program, texture.native());
+            }
+        };
+        if remove {
+            hat.remove_element(id);
+            inner.selected_hat_id = None;
+        }
     }
-    fn draw_wings_ui(&mut self, ui: &mut Ui, hat: &mut Wings) {
+    fn draw_wings_ui(&mut self, ui: &mut Ui, inner: &mut TabInner) {
+        let hat = &mut inner.hat;
+        let wings = hat.wings_mut().unwrap();
+        let id = wings.id();
+        let mut path = None;
+        let mut remove = false;
         ScrollArea::new([true, true])
             .drag_to_scroll(false)
             .show(ui, |ui| {
-                let frames_amount = hat.frames_amount();
-                let anim = &mut hat.animations[0];
+                let frames_amount = wings.frames_amount();
                 ui.allocate_space((ui.available_width(), 1.0).into());
                 ui.heading("Wings");
                 ui.horizontal(|ui| {
+                    if ui.button("Set texture").clicked() {
+                        path = rfd::FileDialog::new().pick_file();
+                    }
+                    ui.checkbox(&mut inner.keep_metapixels, "Keep metapixels");
+                });
+                remove = self.remove_element_ui(ui);
+                ui.horizontal(|ui| {
                     ui.label("Delay");
+                    let anim = &mut wings.animations[0];
                     if ui
                         .add(DragValue::new(&mut anim.delay).clamp_range(1..=255))
                         .changed()
                     {
-                        hat.auto_anim_speed = anim.delay;
+                        wings.auto_anim_speed = anim.delay;
                     }
                     let plus = Button::new("+").min_size(Vec2::splat(18.0));
                     let minus = Button::new("-").min_size(Vec2::splat(18.0));
                     if ui.add(minus).clicked() {
                         anim.delay -= 1;
-                        hat.auto_anim_speed = anim.delay;
+                        wings.auto_anim_speed = anim.delay;
                     } else if ui.add(plus).clicked() {
                         anim.delay += 1;
-                        hat.auto_anim_speed = anim.delay;
+                        wings.auto_anim_speed = anim.delay;
                     }
                     if ui.button("Reset").clicked() {
                         anim.delay = DEFAULT_AUTO_SPEED;
-                        hat.auto_anim_speed = DEFAULT_AUTO_SPEED;
+                        wings.auto_anim_speed = DEFAULT_AUTO_SPEED;
                     }
                 });
                 ui.horizontal(|ui| {
                     ui.label("Glide frame");
                     ui.add(
-                        DragValue::new(&mut hat.auto_glide_frame).clamp_range(1..=frames_amount),
+                        DragValue::new(&mut wings.auto_glide_frame).clamp_range(1..=frames_amount),
                     );
                     if ui.button("Reset").clicked() {
-                        hat.auto_glide_frame = frames_amount as i32;
+                        wings.auto_glide_frame = frames_amount as i32;
                     }
                 });
                 ui.horizontal(|ui| {
                     ui.label("Idle frame");
-                    ui.add(DragValue::new(&mut hat.auto_idle_frame).clamp_range(1..=frames_amount));
+                    ui.add(
+                        DragValue::new(&mut wings.auto_idle_frame).clamp_range(1..=frames_amount),
+                    );
                     if ui.button("Reset").clicked() {
-                        hat.auto_idle_frame = 0;
+                        wings.auto_idle_frame = 0;
                     }
                 });
                 ivec2_ui(
                     ui,
-                    &mut hat.base_mut().frame_size,
+                    &mut wings.base_mut().frame_size,
                     hats::MIN_FRAME_SIZE..=hats::MAX_FRAME_SIZE,
                     hats::MIN_FRAME_SIZE..=hats::MAX_FRAME_SIZE,
                     "Frame Size",
                 );
                 ivec2_ui(
                     ui,
-                    &mut hat.crouch_offset,
+                    &mut wings.crouch_offset,
                     0..=255,
                     0..=255,
                     "Crouch offset",
                 );
                 ivec2_ui(
                     ui,
-                    &mut hat.ragdoll_offset,
+                    &mut wings.ragdoll_offset,
                     0..=255,
                     0..=255,
                     "Ragdoll offset",
                 );
-                ivec2_ui(ui, &mut hat.slide_offset, 0..=255, 0..=255, "Slide offset");
                 ivec2_ui(
                     ui,
-                    &mut hat.general_offset,
+                    &mut wings.slide_offset,
+                    0..=255,
+                    0..=255,
+                    "Slide offset",
+                );
+                ivec2_ui(
+                    ui,
+                    &mut wings.general_offset,
                     0..=255,
                     0..=255,
                     "Global offset",
                 );
             });
+        let _: Option<()> = try {
+            let path = path?;
+            if !inner.keep_metapixels {
+                let new_hat = Wings::load_from_path(path, self.frame_data.gl).ok()?;
+                inner.selected_hat_id = Some(new_hat.base().id);
+                hat.replace_element(id, new_hat);
+            } else {
+                let texture = wings.texture_mut()?;
+                let old_program = texture.native();
+                texture.replace_from_path(self.frame_data.gl, path);
+                self.frame_data
+                    .texture_reloader
+                    .update_texture_program(old_program, texture.native());
+            }
+        };
+        if remove {
+            hat.remove_element(id);
+            inner.selected_hat_id = None;
+        }
     }
-    fn draw_flying_pet_ui(&mut self, ui: &mut Ui, hat: &mut FlyingPet) {
+    fn draw_preview_ui(&mut self, ui: &mut Ui, inner: &mut TabInner) {
+        let hat = &mut inner.hat;
+        let id = hat.preview().unwrap().id();
+        ui.heading("Preview hat");
+        let path = if ui.button("Set texture").clicked() {
+            rfd::FileDialog::new().pick_file()
+        } else {
+            None
+        };
+        let _: Option<()> = try {
+            let path = path?;
+            let new_hat = Preview::load_from_path(path, self.frame_data.gl).ok()?;
+            inner.selected_hat_id = Some(new_hat.base().id);
+            hat.replace_element(id, new_hat);
+        };
+        if self.remove_element_ui(ui) {
+            hat.remove_element(id);
+            inner.selected_hat_id = None;
+        }
+    }
+    fn draw_flying_pet_ui(&mut self, ui: &mut Ui, inner: &mut TabInner, id: HatElementId) {
+        let hat = &mut inner.hat;
+        let flying_pet: &mut FlyingPet =
+            hat.element_from_id_mut(id).unwrap().downcast_mut().unwrap();
+        let id = flying_pet.id();
+        let mut path = None;
+        let mut remove = false;
         ScrollArea::new([true, true])
             .drag_to_scroll(false)
             .show(ui, |ui| {
                 ui.allocate_space((ui.available_width(), 1.0).into());
                 ui.heading("Flying pet");
+                ui.horizontal(|ui| {
+                    if ui.button("Set texture").clicked() {
+                        path = rfd::FileDialog::new().pick_file();
+                    }
+                    ui.checkbox(&mut inner.keep_metapixels, "Keep metapixels");
+                });
+                remove = self.remove_element_ui(ui);
                 ivec2_ui(
                     ui,
-                    &mut hat.base_mut().frame_size,
+                    &mut flying_pet.base_mut().frame_size,
                     hats::MIN_FRAME_SIZE..=hats::MAX_FRAME_SIZE,
                     hats::MIN_FRAME_SIZE..=hats::MAX_FRAME_SIZE,
                     "Frame Size",
                 );
-                drag_value_with_checkbox(ui, "Distance", &mut hat.pet_base.distance, 0..=255);
-                drag_value_with_checkbox(ui, "Speed", &mut hat.speed, 0..=255);
-                ui.checkbox(&mut hat.pet_base.flipped, "Flip");
-                ui.checkbox(&mut hat.changes_angle, "Changes angle");
-                self.draw_animations_ui(hat, ui);
+                ui.horizontal(|ui| {
+                    ui.label("Distance");
+                    ui.add(DragValue::new(&mut flying_pet.pet_base.distance).clamp_range(0..=255));
+                    if ui.button("Reset").clicked() {
+                        flying_pet.pet_base.distance = DEFAULT_PET_DISTANCE;
+                    }
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Speed");
+                    ui.add(DragValue::new(&mut flying_pet.speed).clamp_range(0..=255));
+                    if ui.button("Reset").clicked() {
+                        flying_pet.speed = DEFAULT_PET_SPEED;
+                    }
+                });
+                ui.checkbox(&mut flying_pet.pet_base.flipped, "Flip");
+                ui.checkbox(&mut flying_pet.changes_angle, "Changes angle");
+                let anim_changes = self.draw_animations_ui(flying_pet as &mut dyn AbstractHat, ui);
+                if let Some(anim) = anim_changes.added {
+                    if !flying_pet
+                        .pet_base
+                        .animations
+                        .iter()
+                        .any(|h| h.anim_type == anim)
+                    {
+                        flying_pet
+                            .pet_base
+                            .animations
+                            .push(Animation::new(anim, 3, false, vec![]));
+                    }
+                }
+                if let Some(anim) = anim_changes.removed {
+                    flying_pet
+                        .pet_base
+                        .animations
+                        .retain(|a| a.anim_type != anim);
+                }
             });
+        let _: Option<()> = try {
+            let path = path?;
+            if !inner.keep_metapixels {
+                let new_hat = FlyingPet::load_from_path(path, self.frame_data.gl).ok()?;
+                inner.selected_hat_id = Some(new_hat.base().id);
+                hat.replace_element(id, new_hat);
+            } else {
+                let texture = flying_pet.texture_mut()?;
+                let old_program = texture.native();
+                texture.replace_from_path(self.frame_data.gl, path);
+                self.frame_data
+                    .texture_reloader
+                    .update_texture_program(old_program, texture.native());
+            }
+        };
+        if remove {
+            hat.remove_element(id);
+            inner.selected_hat_id = None;
+        }
     }
-    fn draw_walking_pet_ui(&mut self, ui: &mut Ui, hat: &mut WalkingPet) {}
-    //TODO: add on spawn animation ui
-    fn draw_wereable_hat_ui(&mut self, ui: &mut Ui, hat: &mut Wereable) {
+    fn draw_walking_pet_ui(&mut self, ui: &mut Ui, inner: &mut TabInner, id: HatElementId) {
+        let hat = &mut inner.hat;
+        let walking_pet: &mut WalkingPet =
+            hat.element_from_id_mut(id).unwrap().downcast_mut().unwrap();
+        let mut path = None;
+        let mut remove = false;
+        ScrollArea::new([true, true])
+            .drag_to_scroll(false)
+            .show(ui, |ui| {
+                ui.allocate_space((ui.available_width(), 1.0).into());
+                ui.heading("Walking pet");
+                ui.heading("Extra hat");
+                ui.horizontal(|ui| {
+                    if ui.button("Set texture").clicked() {
+                        path = rfd::FileDialog::new().pick_file();
+                    }
+                    ui.checkbox(&mut inner.keep_metapixels, "Keep metapixels");
+                });
+                remove = self.remove_element_ui(ui);
+                ivec2_ui(
+                    ui,
+                    &mut walking_pet.base_mut().frame_size,
+                    hats::MIN_FRAME_SIZE..=hats::MAX_FRAME_SIZE,
+                    hats::MIN_FRAME_SIZE..=hats::MAX_FRAME_SIZE,
+                    "Frame Size",
+                );
+                ui.horizontal(|ui| {
+                    ui.label("Distance");
+                    ui.add(DragValue::new(&mut walking_pet.pet_base.distance).clamp_range(0..=255));
+                    if ui.button("Reset").clicked() {
+                        walking_pet.pet_base.distance = DEFAULT_PET_DISTANCE;
+                    }
+                });
+                ui.checkbox(&mut walking_pet.pet_base.flipped, "Flip");
+                let anim_changes = self.draw_animations_ui(walking_pet as &mut dyn AbstractHat, ui);
+                if let Some(anim) = anim_changes.added {
+                    if !walking_pet
+                        .pet_base
+                        .animations
+                        .iter()
+                        .any(|h| h.anim_type == anim)
+                    {
+                        walking_pet.pet_base.animations.push(Animation::new(
+                            anim,
+                            3,
+                            false,
+                            vec![],
+                        ));
+                    }
+                }
+                if let Some(anim) = anim_changes.removed {
+                    walking_pet
+                        .pet_base
+                        .animations
+                        .retain(|a| a.anim_type != anim);
+                }
+            });
+        let _: Option<()> = try {
+            let path = path?;
+            if !inner.keep_metapixels {
+                let new_hat = WalkingPet::load_from_path(path, self.frame_data.gl).ok()?;
+                inner.selected_hat_id = Some(new_hat.base().id);
+                hat.replace_element(id, new_hat);
+            } else {
+                let texture = walking_pet.texture_mut()?;
+                let old_program = texture.native();
+                texture.replace_from_path(self.frame_data.gl, path);
+                self.frame_data
+                    .texture_reloader
+                    .update_texture_program(old_program, texture.native());
+            }
+        };
+        if remove {
+            hat.remove_element(id);
+            inner.selected_hat_id = None;
+        }
+    }
+    fn draw_wereable_hat_ui(&mut self, ui: &mut Ui, inner: &mut TabInner) {
+        let hat = &mut inner.hat;
+        let wereable = hat.wereable_mut().unwrap();
+        let id = wereable.id();
+        let mut path = None;
+        let mut remove = false;
         ScrollArea::new([true, true])
             .drag_to_scroll(false)
             .show(ui, |ui| {
                 ui.allocate_space((ui.available_width(), 1.0).into());
                 ui.heading("Wereable hat")
                     .on_hover_text("This a wereable hat.\nIt can do stuff.");
+                ui.heading("Extra hat");
+                ui.horizontal(|ui| {
+                    if ui.button("Set texture").clicked() {
+                        path = rfd::FileDialog::new().pick_file();
+                    }
+                    ui.checkbox(&mut inner.keep_metapixels, "Keep metapixels");
+                });
+                remove = self.remove_element_ui(ui);
                 ivec2_ui(
                     ui,
-                    &mut hat.base_mut().frame_size,
+                    &mut wereable.base_mut().frame_size,
                     hats::MIN_FRAME_SIZE..=hats::MAX_FRAME_SIZE,
                     hats::MIN_FRAME_SIZE..=hats::MAX_FRAME_SIZE,
                     "Frame Size",
                 );
                 egui::ComboBox::from_label("Quack Frame Link State")
-                    .selected_text(format!("{}", hat.link_frame_state))
+                    .selected_text(format!("{}", wereable.link_frame_state))
                     .show_ui(ui, |ui| {
                         ui.selectable_value(
-                            &mut hat.link_frame_state,
+                            &mut wereable.link_frame_state,
                             LinkFrameState::Default,
                             "None",
                         );
                         ui.selectable_value(
-                            &mut hat.link_frame_state,
+                            &mut wereable.link_frame_state,
                             LinkFrameState::Saved,
                             "Saved",
                         );
                         ui.selectable_value(
-                            &mut hat.link_frame_state,
+                            &mut wereable.link_frame_state,
                             LinkFrameState::Inverted,
                             "Inverted",
                         );
                     });
-                let mut spawn_animation =
-                    hat.on_spawn_animation.unwrap_or(AnimationType::Unspecified);
+                let mut spawn_animation = wereable
+                    .on_spawn_animation
+                    .unwrap_or(AnimationType::Unspecified);
                 egui::ComboBox::from_label("Spawn animation")
                     .selected_text(
-                        hat.on_spawn_animation
+                        wereable
+                            .on_spawn_animation
                             .map(|anim| anim.to_string())
                             .unwrap_or("None".to_owned()),
                     )
                     .show_ui(ui, |ui| {
-                        for anim in &hat.animations {
+                        for anim in &wereable.animations {
                             ui.selectable_value(
                                 &mut spawn_animation,
                                 anim.anim_type,
@@ -333,21 +571,46 @@ impl MyTabViewer<'_> {
                         }
                     });
                 if !matches!(spawn_animation, AnimationType::Unspecified) {
-                    hat.on_spawn_animation = Some(spawn_animation);
+                    wereable.on_spawn_animation = Some(spawn_animation);
                 }
-                if !hat.animations.iter().any(|a| a.anim_type == spawn_animation) {
-                    hat.on_spawn_animation = None;
+                if !wereable
+                    .animations
+                    .iter()
+                    .any(|a| a.anim_type == spawn_animation)
+                {
+                    wereable.on_spawn_animation = None;
                 }
-                let anim_changes = self.draw_animations_ui(hat as &mut dyn AbstractHat, ui);
+                let anim_changes = self.draw_animations_ui(wereable as &mut dyn AbstractHat, ui);
                 if let Some(anim) = anim_changes.added {
-                    if !hat.animations.iter().any(|h| h.anim_type == anim) {
-                        hat.animations.push(Animation::new(anim, 3, false, vec![]));
+                    if !wereable.animations.iter().any(|h| h.anim_type == anim) {
+                        wereable
+                            .animations
+                            .push(Animation::new(anim, 3, false, vec![]));
                     }
                 }
                 if let Some(anim) = anim_changes.removed {
-                    hat.animations.retain(|a| a.anim_type != anim);
+                    wereable.animations.retain(|a| a.anim_type != anim);
                 }
             });
+        let _: Option<()> = try {
+            let path = path?;
+            if !inner.keep_metapixels {
+                let new_hat = Wereable::load_from_path(path, self.frame_data.gl).ok()?;
+                inner.selected_hat_id = Some(new_hat.base().id);
+                hat.replace_element(id, new_hat);
+            } else {
+                let texture = wereable.texture_mut()?;
+                let old_program = texture.native();
+                texture.replace_from_path(self.frame_data.gl, path);
+                self.frame_data
+                    .texture_reloader
+                    .update_texture_program(old_program, texture.native());
+            }
+        };
+        if remove {
+            hat.remove_element(id);
+            inner.selected_hat_id = None;
+        }
     }
     fn draw_animations_ui(&mut self, hat: &mut dyn AbstractHat, ui: &mut Ui) -> AnimationChanges {
         let frames_amount = hat.frames_amount();
@@ -395,7 +658,7 @@ impl MyTabViewer<'_> {
                 egui_dnd::dnd(ui, "my_dnd").show_vec(
                     &mut anim.frames,
                     |ui, item: &mut Frame, handle, state| {
-                        ui.push_id(item.id().0, |ui| {
+                        ui.push_id(item.id().value(), |ui| {
                             ui.horizontal(|ui| {
                                 handle.ui(ui, |ui| {
                                     ui.label((item.value + 1).to_string());
@@ -511,21 +774,17 @@ impl MyTabViewer<'_> {
         new_hat_event
     }
 
-    fn draw_hat_ui(&mut self, selected_hat: &mut &mut dyn AbstractHat, ui: &mut Ui) {
-        match selected_hat.base().hat_type {
-            HatType::Wereable => {
-                self.draw_wereable_hat_ui(ui, selected_hat.downcast_mut().unwrap());
-            }
-            HatType::Wings => self.draw_wings_ui(ui, selected_hat.downcast_mut().unwrap()),
-            HatType::FlyingPet => self.draw_flying_pet_ui(ui, selected_hat.downcast_mut().unwrap()),
-            HatType::WalkingPet => {
-                self.draw_walking_pet_ui(ui, selected_hat.downcast_mut().unwrap())
-            }
-            HatType::Extra => {
-                self.draw_extra_hat_ui(ui, selected_hat.downcast_mut().unwrap());
-            }
-            _ => (),
-        }
+    fn draw_hat_ui(&mut self, selected_hat_id: HatElementId, inner: &mut TabInner, ui: &mut Ui) {
+        let hat_id = inner.selected_hat_id.unwrap();
+        match inner.hat.hat_type_by_id(selected_hat_id).unwrap() {
+            HatType::Wereable => self.draw_wereable_hat_ui(ui, inner),
+            HatType::Wings => self.draw_wings_ui(ui, inner),
+            HatType::FlyingPet => self.draw_flying_pet_ui(ui, inner, hat_id),
+            HatType::WalkingPet => self.draw_walking_pet_ui(ui, inner, hat_id),
+            HatType::Extra => self.draw_extra_hat_ui(ui, inner),
+            HatType::Preview => self.draw_preview_ui(ui, inner),
+            _ => {}
+        };
     }
 }
 
@@ -537,7 +796,7 @@ impl TabViewer for MyTabViewer<'_> {
     }
 
     fn ui(&mut self, ui: &mut Ui, tab: &mut Self::Tab) {
-        let mut inner = tab.inner.borrow_mut();
+        let inner: &mut TabInner = &mut tab.inner.borrow_mut();
         if inner.is_home_tab {
             let new_hat = self.ui_home(ui);
             if let Some(hat) = new_hat {
@@ -574,11 +833,9 @@ impl TabViewer for MyTabViewer<'_> {
         });
         let selected_hat_id = inner.selected_hat_id.unwrap();
         let hat_name = inner.title.clone();
-        let selected_hat = &mut inner.hat.element_from_id_mut(selected_hat_id).unwrap();
+        let selected_hat = inner.hat.element_from_id_mut(selected_hat_id).unwrap();
         let frame_size = selected_hat.base().frame_size;
         let animations = selected_hat.animations().map(|a| a.to_vec());
-        self.draw_hat_ui(selected_hat, ui);
-
         if let Some(texture) = selected_hat.texture().cloned() {
             //keep calm and call clone, right?
             inner.animation_window.draw(AnimationWindowFrameData {
@@ -590,8 +847,10 @@ impl TabViewer for MyTabViewer<'_> {
                 frame_size,
                 hat_name,
                 anim_window_action: self.frame_data.anim_window_action,
+                time: self.frame_data.time,
             });
         }
+        self.draw_hat_ui(selected_hat_id, inner, ui);
     }
 
     fn on_add(&mut self, surface: egui_dock::SurfaceIndex, node: egui_dock::NodeIndex) {

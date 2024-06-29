@@ -1,0 +1,35 @@
+C:\Users\ivanh\Downloads\Animated fridges collection\build\obj\x86\Debug\mod.csproj.AssemblyReference.cache
+C:\Users\ivanh\Downloads\Animated fridges collection\build\obj\x86\Debug\mod.csproj.CoreCompileInputs.cache
+C:\Users\ivanh\Downloads\Animated fridges collection\build\obj\x86\Debug\mod.csproj.CopyComplete
+C:\Users\ivanh\Downloads\Animated fridges collection\build\obj\x86\Debug\AnimatedFridgeCollection.dll
+C:\Users\ivanh\Downloads\Animated fridges collection\build\obj\x86\Debug\AnimatedFridgeCollection.pdb
+C:\Users\ivanh\Downloads\Animated fridges collection\AnimatedFridgeCollection.dll
+C:\Users\ivanh\Downloads\Animated fridges collection\AnimatedFridgeCollection.pdb
+C:\Users\ivanh\Downloads\Animated fridges collection\DuckGame.exe
+C:\Users\ivanh\Downloads\Animated fridges collection\Hats++.dll
+C:\Users\ivanh\Downloads\Animated fridges collection\DGSteam.dll
+C:\Users\ivanh\Downloads\Animated fridges collection\DGInput.dll
+C:\Users\ivanh\Downloads\Animated fridges collection\NAudio.dll
+C:\Users\ivanh\Downloads\Animated fridges collection\NVorbis.dll
+C:\Users\ivanh\Downloads\Animated fridges collection\CrashWindow.exe
+C:\Users\ivanh\Downloads\Animated fridges collection\NVorbis.NAudioSupport.dll
+C:\Users\ivanh\Downloads\Animated fridges collection\DuckGame.pdb
+C:\Users\ivanh\Downloads\Animated fridges collection\DuckGame.xml
+C:\Users\ivanh\Downloads\Animated fridges collection\DuckGame.exe.config
+C:\Users\ivanh\Downloads\Animated fridges collection\Hats++.pdb
+C:\Users\ivanh\Downloads\Animated fridges collection\DGSteam.pdb
+C:\Users\ivanh\Downloads\Animated fridges collection\DGInput.pdb
+C:\Users\ivanh\Downloads\Animated fridges collection\NAudio.xml
+C:\Users\ivanh\Downloads\Animated fridges collection\CrashWindow.pdb
+C:\Users\ivanh\Downloads\Animated fridges collection\CrashWindow.exe.config
+C:\Users\ivanh\AppData\Roaming\DuckGame\Mods\AnimatedFridgesCollection\build\obj\x86\Debug\mod.csproj.AssemblyReference.cache
+C:\Users\ivanh\AppData\Roaming\DuckGame\Mods\AnimatedFridgesCollection\build\obj\x86\Debug\mod.csproj.CoreCompileInputs.cache
+C:\Users\ivanh\AppData\Roaming\DuckGame\Mods\AnimatedFridgesCollection\build\obj\x86\Debug\mod.csproj.CopyComplete
+C:\Users\ivanh\AppData\Roaming\DuckGame\Mods\AnimatedFridgesCollection\build\obj\x86\Debug\AnimatedFridgesCollection.dll
+C:\Users\ivanh\AppData\Roaming\DuckGame\Mods\AnimatedFridgesCollection\build\obj\x86\Debug\AnimatedFridgesCollection.pdb
+C:\Users\ivanh\AppData\Roaming\DuckGame\Mods\AnimatedFridgesCollection\AnimatedFridgesCollection.dll
+C:\Users\ivanh\AppData\Roaming\DuckGame\Mods\AnimatedFridgesCollection\AnimatedFridgesCollection.pdb
+C:\Users\ivanh\AppData\Roaming\DuckGame\Mods\AnimatedFridgesCollection\Hats++.dll
+C:\Users\ivanh\AppData\Roaming\DuckGame\Mods\AnimatedFridgesCollection\Hats++.pdb
+C:\Users\ivanh\AppData\Roaming\DuckGame\Mods\AnimatedFridgesCollection\0Harmony.dll
+C:\Users\ivanh\AppData\Roaming\DuckGame\Mods\AnimatedFridgesCollection\Hats++.xml

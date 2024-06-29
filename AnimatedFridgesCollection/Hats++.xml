@@ -1,0 +1,225 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>Hats++</name>
+    </assembly>
+    <members>
+        <member name="T:HatsPlusPlus.CustomHat">
+            <summary>
+            The most basic hat.
+            </summary>
+        </member>
+        <member name="F:HatsPlusPlus.CustomHat.canPickUp">
+            <summary>
+            Determines if the hat can be picked up or not.
+            </summary>
+        </member>
+        <member name="M:HatsPlusPlus.CustomHat.OnPressedQuack">
+            <summary>
+            Called once after you pressed the quack button.
+            </summary>
+        </member>
+        <member name="M:HatsPlusPlus.CustomHat.OnReleasedQuack">
+            <summary>
+            Called once after you released the quack button.
+            </summary>
+        </member>
+        <member name="M:HatsPlusPlus.CustomHat.OnHoldQuack">
+            <summary>
+            Called every frame while you are holding the quack button.
+            </summary>
+        </member>
+        <member name="M:HatsPlusPlus.CustomHat.OnSelect">
+            <summary>
+            Called once after the hat was selected.
+            </summary>
+        </member>
+        <member name="F:HatsPlusPlus.HatAnimation.name">
+            <summary>
+            Removes a range of frames.
+            </summary>
+        </member>
+        <member name="T:HatsPlusPlus.PetHat">
+            <summary>
+            A pet.
+            </summary>
+        </member>
+        <member name="M:HatsPlusPlus.PetHat.OnStatic">
+            <summary>
+            Called once after pet reached the duck.
+            </summary>
+        </member>
+        <member name="M:HatsPlusPlus.PetHat.OnApproach">
+            <summary>
+            Called once after pet started to approach the duck.
+            </summary>
+        </member>
+        <member name="M:HatsPlusPlus.PetHat.OnDuckDeath">
+            <summary>
+            Called once after your duck dies.
+            </summary>
+        </member>
+        <member name="F:HatsPlusPlus.PetHat.flipping">
+            <summary>
+            if true, pet will rotate in duck's direction.
+            </summary>
+        </member>
+        <member name="F:HatsPlusPlus.PetHat.approachRadius">
+            <summary>
+            Determines how close pet has to get to think that he reached the duck.
+            </summary>
+        </member>
+        <member name="T:HatsPlusPlus.SelectableHat">
+            <summary>
+            A hat that can be selected via HatSelector
+            </summary>
+        </member>
+        <member name="P:HatsPlusPlus.SelectableHat.AdditionalHats">
+            <summary>
+            Additional hats, which will be spawned when the main hat is spawned.  
+            </summary>
+        </member>
+        <member name="P:HatsPlusPlus.SelectableHat.Pets">
+            <summary>
+            Slot for a pet, that will be spawned when the main hat is spawned, if initializied.  
+            </summary>
+        </member>
+        <member name="P:HatsPlusPlus.SelectableHat.Wings">
+            <summary>
+            Slot for wings.
+            </summary>
+        </member>
+        <member name="P:HatsPlusPlus.SelectableHat.HatPreviewSprite">
+            <summary>
+            A sprite that will be shown in hat selector to identify the hat.
+            </summary>
+        </member>
+        <member name="P:HatsPlusPlus.SelectableHat.Cloack">
+            <summary>
+            A cloack.
+            </summary>
+        </member>
+        <member name="T:HatsPlusPlus.AdditionalHat">
+            <summary>
+            A hat for making some additional stuff.
+            </summary>
+        </member>
+        <member name="T:HatsPlusPlus.WingsHat">
+            <summary>
+            A hat for wings.
+            </summary>
+        </member>
+        <member name="F:HatsPlusPlus.WingsHat.offset">
+            <summary>
+            An offset of position of wings ((-4, 5) by default).
+            </summary>
+        </member>
+        <member name="F:HatsPlusPlus.WingsHat.crouchOffset">
+            <summary>
+            An offset of position of wings while duck's crouching ((0,4) by default).
+            </summary>
+        </member>
+        <member name="F:HatsPlusPlus.WingsHat.slideOffset">
+            <summary>
+            An offset of position of wings while duck's sliding ((1,12) by default).
+            </summary>
+        </member>
+        <member name="M:HatsPlusPlus.WingsHat.DoNothing">
+            <summary>
+            Adds following animations to the given HatSpriteMap: flying, gliding, idle
+            </summary>
+        </member>
+        <member name="T:HatsPlusPlus.HatSprite">
+            <summary>
+            An analog of DuckGame.Sprite wich uses hats.
+            </summary>
+        </member>
+        <member name="T:HatsPlusPlus.HatSpriteMap">
+            <summary>
+            An analog of DuckGame.SpriteMap wich uses hats.
+            </summary>
+        </member>
+        <member name="P:HatsPlusPlus.HatSpriteMap.Finished">
+            <summary>
+            True if animation has finished.
+            </summary>
+        </member>
+        <member name="F:HatsPlusPlus.HatSpriteMap.currentAnim">
+            <summary>
+            Current animation.
+            </summary>
+        </member>
+        <member name="F:HatsPlusPlus.HatSpriteMap.frozen">
+            <summary>
+            if true, frames will not update
+            </summary>
+        </member>
+        <member name="P:HatsPlusPlus.HatSpriteMap.FramesAmountIndexed">
+            <summary>
+            Amount of frames indexed (starts from zero)
+            </summary>
+        </member>
+        <member name="M:HatsPlusPlus.HatSpriteMap.SwitchAnimation(HatsPlusPlus.HatAnimation,System.Boolean)">
+            <summary>
+            Tries to find an animation and switches it with current animation, if both animations have equal amount of frames. Timer and frame are saved.
+            </summary>
+        </member>
+        <member name="M:HatsPlusPlus.HatSpriteMap.AddAnimation(System.String,System.Int32,System.Boolean,System.Int32[])">
+            <summary>
+            Adds an animation.
+            </summary>
+        </member>
+        <member name="M:HatsPlusPlus.HatSpriteMap.AddAnimation(HatsPlusPlus.HatAnimation)">
+            <summary>
+            Adds an animation.
+            </summary>
+        </member>
+        <member name="M:HatsPlusPlus.HatSpriteMap.AddAnimation(System.String,System.Int32,System.Boolean,System.Int32,System.Int32)">
+            <summary>
+             Adds an animation. Adds all frames from the startIndex to the endIndex.
+            </summary>
+        </member>
+        <member name="M:HatsPlusPlus.HatSpriteMap.GetAnimationIndex(System.String)">
+            <summary>
+            Searches for an animation. Returns the animation's index, if it was found. Otherwise returns -1.
+            </summary>
+        </member>
+        <member name="M:HatsPlusPlus.HatSpriteMap.SetAnimation(System.String,HatsPlusPlus.SwitchState,System.Boolean)">
+            <summary>
+            Tries to find an animation by its name. If the animation was found, sets it as current animation.
+            </summary>
+        </member>
+        <member name="M:HatsPlusPlus.HatSpriteMap.SetAnimation(DuckGame.Animation)">
+            <summary>
+            Tries to find an animation by it's name. If the animation was found, sets it as current animation.
+            </summary>
+        </member>
+        <member name="M:HatsPlusPlus.HatSpriteMap.RestartCurrentAnimation(System.Boolean)">
+            <summary>
+            Sets timer and frame values to 0; sets finishied to false.
+            </summary>
+        </member>
+        <member name="P:HatsPlusPlus.DucksUtils.MainDuckPositionPart1">
+            <summary>
+            Finds local duck.
+            </summary>
+            <returns>Local duck. </returns>
+        </member>
+        <member name="M:HatsPlusPlus.DucksUtils.GetLocalProfile">
+            <summary>
+            Finds local profile.
+            </summary>
+            <returns>Local profile. </returns>
+        </member>
+        <member name="P:HatsPlusPlus.DucksUtils.MainDuck">
+            <summary>
+            Represents local duck.
+            </summary>
+        </member>
+        <member name="P:HatsPlusPlus.DucksUtils.MainProfile">
+            <summary>
+            Represents local profile.
+            </summary>
+        </member>
+    </members>
+</doc>
