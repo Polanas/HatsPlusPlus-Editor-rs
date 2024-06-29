@@ -798,13 +798,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "catppuccin-egui"
-version = "5.1.1"
-dependencies = [
- "egui",
-]
-
-[[package]]
 name = "cc"
 version = "1.0.99"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1986,7 +1979,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bevy_math",
- "catppuccin-egui",
  "color-eyre",
  "derivative",
  "downcast-rs",

@@ -2,6 +2,7 @@
 #![feature(try_blocks)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
+mod catppuccin_egui;
 mod animation_window;
 mod animations;
 mod colors;
