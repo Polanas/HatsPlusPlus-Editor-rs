@@ -545,7 +545,7 @@ impl MyEguiApp {
             Shader::from_text_with_path(gl, "src/anim_shader/frag.glsl", frag, "src/anim_shader/vert.glsl", vert)
                 .unwrap();
         shader_reloader.add_shader(&animation_shader);
-        let ui_text: Rc<UiText> = UiText::new(language, "text.json").into();
+        let ui_text: Rc<UiText> = UiText::new(language, include_str!("../text.json")).into();
         let home_name = ui_text.get("Home");
         MyEguiApp::init_opengl_objects(gl);
         Self {

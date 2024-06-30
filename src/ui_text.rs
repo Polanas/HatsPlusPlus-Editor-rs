@@ -15,9 +15,8 @@ pub struct UiText {
 }
 
 impl UiText {
-    pub fn new(language: Language, text_path: impl AsRef<Path>) -> Self {
-        let json = std::fs::read_to_string(text_path.as_ref()).unwrap();
-        let json = serde_json::from_str(&json).unwrap();
+    pub fn new(language: Language, json: &str) -> Self {
+        let json = serde_json::from_str(json).unwrap();
         Self {
             language,
             data: json,
