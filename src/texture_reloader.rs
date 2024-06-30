@@ -1,9 +1,4 @@
-use std::{
-    cell::RefCell,
-    path::{Path, PathBuf},
-    rc::Rc,
-    sync::Arc,
-};
+use std::{cell::RefCell, path::PathBuf, rc::Rc};
 
 use crate::file_utils::Ms;
 use eframe::glow::{HasContext, NativeTexture};

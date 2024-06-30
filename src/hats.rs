@@ -19,7 +19,7 @@ use bevy_math::IVec2;
 use derivative::Derivative;
 use downcast_rs::{impl_downcast, Downcast};
 use eframe::glow::Context;
-use num_traits::{FromPrimitive, Saturating, SaturatingAdd};
+use num_traits::FromPrimitive;
 use pixas::bitmap::Bitmap;
 use pixas::pixel::Pixel;
 use pixas::Rectanlge;
@@ -114,7 +114,7 @@ pub const MIN_FRAME_SIZE: i32 = 32;
 pub const MAX_FRAME_SIZE: i32 = 64;
 
 thread_local! {
-    static HAT_ID_COUNTER: Cell<u32> = Cell::new(0);
+    static HAT_ID_COUNTER: Cell<u32> = const { Cell::new(0) };
 }
 
 pub fn hat_id() -> HatElementId {
@@ -945,10 +945,6 @@ impl Hat {
             unique_elemets: HashMap::new(),
         }
     }
-    pub fn name(&self) -> Option<String> {
-        let path = self.path.as_ref()?;
-        path.file_stem_string()
-    }
     pub fn hat_type_by_id(&self, id: HatElementId) -> Option<HatType> {
         self.iter_all_elements()
             .filter(|h| h.id() == id)
@@ -964,6 +960,7 @@ impl Hat {
     pub fn element_from_id_mut(&mut self, id: HatElementId) -> Option<&mut dyn AbstractHat> {
         self.iter_all_elements_mut().find(|h| h.id() == id)
     }
+    #[allow(dead_code)]
     pub fn element_from_id(&self, id: HatElementId) -> Option<&dyn AbstractHat> {
         self.iter_all_elements().find(|h| h.id() == id)
     }
@@ -1015,6 +1012,7 @@ impl Hat {
             .get(&HatType::Room)
             .and_then(|e| e.downcast_ref::<RoomHat>())
     }
+    #[allow(dead_code)]
     pub fn room_mut(&mut self) -> Option<&mut RoomHat> {
         self.unique_elemets
             .get_mut(&HatType::Room)
@@ -1025,26 +1023,31 @@ impl Hat {
             .get(&HatType::Preview)
             .and_then(|e| e.downcast_ref::<Preview>())
     }
+    #[allow(dead_code)]
     pub fn walking_pet_mut(&mut self) -> Option<&mut WalkingPet> {
         self.unique_elemets
             .get_mut(&HatType::WalkingPet)
             .and_then(|e| e.downcast_mut::<WalkingPet>())
     }
+    #[allow(dead_code)]
     pub fn walking_pet(&self) -> Option<&WalkingPet> {
         self.unique_elemets
             .get(&HatType::WalkingPet)
             .and_then(|e| e.downcast_ref::<WalkingPet>())
     }
+    #[allow(dead_code)]
     pub fn flying_pet_mut(&mut self) -> Option<&mut FlyingPet> {
         self.unique_elemets
             .get_mut(&HatType::FlyingPet)
             .and_then(|e| e.downcast_mut::<FlyingPet>())
     }
+    #[allow(dead_code)]
     pub fn flying_pet(&self) -> Option<&FlyingPet> {
         self.unique_elemets
             .get(&HatType::FlyingPet)
             .and_then(|e| e.downcast_ref::<FlyingPet>())
     }
+    #[allow(dead_code)]
     pub fn extra_mut(&mut self) -> Option<&mut Extra> {
         self.unique_elemets
             .get_mut(&HatType::Extra)
@@ -1087,6 +1090,7 @@ impl Hat {
         assert!(is_specified);
         self.unique_elemets.insert(hat_type, hat);
     }
+    #[allow(dead_code)]
     pub fn first_element(&self) -> Option<(&dyn AbstractHat, HatType)> {
         let first_unique = self
             .unique_elemets

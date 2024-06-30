@@ -1,10 +1,9 @@
 use std::{
     path::PathBuf,
-    rc::Rc,
     sync::{Arc, Mutex},
 };
 
-use eframe::glow::{self, HasContext, NativeProgram};
+use eframe::glow::{HasContext, NativeProgram};
 
 use crate::{
     file_utils::{file_modified_time, Ms},
@@ -64,7 +63,7 @@ impl ShaderReloader {
                     Err(err) => {
                         eprintln!("Could not reload shader: {}", err);
                         continue;
-                    },
+                    }
                 };
                 // else {
                 //     eprintln!("Error reloadingshad")

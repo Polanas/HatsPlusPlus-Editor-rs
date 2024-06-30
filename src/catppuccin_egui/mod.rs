@@ -11,24 +11,6 @@ pub fn set_theme(ctx: &egui::Context, theme: Theme) {
     ctx.set_visuals(theme.visuals(old));
 }
 
-/// Apply the given theme to a [`Style`](egui::Style).
-///
-/// # Example
-///
-/// ```rust
-/// # use eframe::egui;
-/// # use egui::__run_test_ctx;
-/// # __run_test_ctx(|ctx| {
-/// let mut style = (*ctx.style()).clone();
-/// catppuccin_egui::set_style_theme(&mut style, catppuccin_egui::MACCHIATO);
-/// ctx.set_style(style);
-/// # });
-/// ```
-pub fn set_style_theme(style: &mut egui::Style, theme: Theme) {
-    let old = style.visuals.clone();
-    style.visuals = theme.visuals(old);
-}
-
 fn make_widget_visual(
     old: style::WidgetVisuals,
     theme: &Theme,

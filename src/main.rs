@@ -2,9 +2,9 @@
 #![feature(try_blocks)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-mod catppuccin_egui;
 mod animation_window;
 mod animations;
+mod catppuccin_egui;
 mod colors;
 mod egui_utils;
 mod event_bus;
@@ -30,12 +30,9 @@ mod ui_text;
 extern crate num_derive;
 
 use anyhow::{bail, Result};
-use eframe::egui::{
-    vec2, Button, CentralPanel, CollapsingHeader, FontDefinitions, Id, KeyboardShortcut, RichText,
-    ViewportBuilder,
-};
+use eframe::egui::{vec2, Button, Id, KeyboardShortcut, ViewportBuilder};
 use eframe::glow::NativeBuffer;
-use eframe::glow::{self, SAMPLE_ALPHA_TO_COVERAGE};
+use eframe::glow::{self};
 use eframe::{
     egui::{self, Ui},
     glow::{Context, HasContext, NativeVertexArray},
@@ -43,7 +40,6 @@ use eframe::{
 };
 use file_utils::FileStemString;
 use hats::{AbstractHat, Extra, FlyingPet, Hat, LoadHat, Preview, WalkingPet, Wereable, Wings};
-use num_traits::CheckedSub;
 use renderer::{Renderer, ScreenUpdate};
 use serde::{Deserialize, Serialize};
 use shader::Shader;
@@ -247,7 +243,7 @@ impl MyEguiApp {
             self.draw_elements_menu(ui, gl);
         });
         ui.menu_button(text.get("Settings"), |ui| {
-            self.draw_setings_menu(ui, gl);
+            self.draw_setings_menu(ui);
         });
         ui.menu_button(text.get("Other"), |ui| {
             if ui.button(text.get("Open Home")).clicked() {
@@ -426,7 +422,6 @@ impl MyEguiApp {
             inner.renderer = Some(Renderer::new(
                 renderer::RENDERER_SCREEN_SIZE,
                 ScreenUpdate::Clear,
-                gl,
             ));
         }
         inner.selected_hat_id = selected_hat_id;
@@ -541,9 +536,14 @@ impl MyEguiApp {
         let mut shader_reloader = ShaderReloader::new();
         let frag = include_str!("anim_shader/frag.glsl");
         let vert = include_str!("anim_shader/vert.glsl");
-        let animation_shader =
-            Shader::from_text_with_path(gl, "src/anim_shader/frag.glsl", frag, "src/anim_shader/vert.glsl", vert)
-                .unwrap();
+        let animation_shader = Shader::from_text_with_path(
+            gl,
+            "src/anim_shader/frag.glsl",
+            frag,
+            "src/anim_shader/vert.glsl",
+            vert,
+        )
+        .unwrap();
         shader_reloader.add_shader(&animation_shader);
         let ui_text: Rc<UiText> = UiText::new(language, include_str!("../text.json")).into();
         let home_name = ui_text.get("Home");
@@ -623,7 +623,7 @@ impl MyEguiApp {
         Rc::get_mut(&mut self.ui_text).unwrap().language = self.config.language;
     }
 
-    fn draw_setings_menu(&mut self, ui: &mut Ui, gl: &Context) {
+    fn draw_setings_menu(&mut self, ui: &mut Ui) {
         let text = self.ui_text.clone();
         ui.collapsing(text.get("Theme"), |ui| {
             if ui.button("Latte").clicked() {

@@ -1,4 +1,4 @@
-use eframe::egui::{InnerResponse, Response, Ui};
+use eframe::egui::{Response, Ui};
 
 use crate::colors;
 
@@ -20,7 +20,8 @@ pub fn red_button(ui: &mut Ui, text: &str, is_light_theme: bool) -> Response {
         ui.style_mut().visuals.widgets.hovered.weak_bg_fill = howered_col;
         ui.style_mut().visuals.widgets.active.weak_bg_fill = active;
         ui.button(text)
-    }).inner
+    })
+    .inner
 }
 
 pub fn centered(ui: &mut Ui, add_contents: impl FnOnce(&mut Ui)) {

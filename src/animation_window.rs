@@ -1,9 +1,8 @@
 use std::sync::Arc;
 
-use bevy_math::{vec2, IVec2, Vec2};
-use eframe::egui::{
-    Button, CollapsingHeader, DragValue, Id, ImageButton, Pos2, Rect, RichText, Ui, Window,
-};
+use bevy_math::IVec2;
+use bevy_math::Vec2;
+use eframe::egui::{Button, CollapsingHeader, Id, Pos2, Rect, Ui, Window};
 use eframe::glow::Context;
 use eframe::glow::{self, HasContext};
 use once_cell::sync::Lazy;

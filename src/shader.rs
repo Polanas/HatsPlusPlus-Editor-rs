@@ -1,15 +1,13 @@
 use std::{
-    cell::RefCell,
     collections::HashMap,
     path::{Path, PathBuf},
-    rc::Rc,
     sync::{Arc, Mutex},
 };
 
 use anyhow::{bail, Result};
 use bevy_math::{Vec2, Vec3};
-use eframe::glow::{self, NativeUniformLocation, UniformLocation};
-use eframe::glow::{HasContext, NativeProgram, NativeTexture};
+use eframe::glow::{self, NativeUniformLocation};
+use eframe::glow::{HasContext, NativeProgram};
 
 #[derive(Clone, Debug)]
 pub struct Shader {
@@ -176,7 +174,7 @@ impl Shader {
     pub fn set_vec2(&self, gl: &eframe::glow::Context, name: &str, value: Vec2) {
         unsafe { gl.uniform_2_f32(self.uniforms().get(name), value.x, value.y) };
     }
-
+    #[allow(dead_code)]
     pub fn set_vec3(&self, gl: &eframe::glow::Context, name: &str, value: Vec3) {
         unsafe { gl.uniform_3_f32(self.uniforms().get(name), value.x, value.y, value.z) };
     }

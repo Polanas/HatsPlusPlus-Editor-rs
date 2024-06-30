@@ -1,6 +1,7 @@
+#![allow(dead_code)]
 use std::rc::Rc;
 
-use bevy_math::{IVec2, Vec2};
+use bevy_math::Vec2;
 use derivative::Derivative;
 use eframe::egui::Color32;
 use pixas::bitmap::Bitmap;

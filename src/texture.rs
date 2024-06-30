@@ -2,7 +2,6 @@ use std::{
     cell::RefCell,
     path::{Path, PathBuf},
     rc::Rc,
-    sync::Arc,
 };
 
 use anyhow::{bail, Result};

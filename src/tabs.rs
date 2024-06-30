@@ -5,19 +5,17 @@ use std::cell::RefCell;
 
 use bevy_math::IVec2;
 use eframe::egui::{
-    self, Button, CollapsingHeader, Color32, Grid, Layout, Response, RichText, ScrollArea, Vec2,
-    WidgetText,
+    self, Button, CollapsingHeader, Color32, Grid, Layout, RichText, ScrollArea, Vec2,
 };
 use eframe::emath::Numeric;
 use egui_dnd::DragDropItem;
 
 use crate::animations::Frame;
-use crate::texture::Texture;
-use crate::{animation_window, animations, hats, prelude::*};
+use crate::{animations, hats, prelude::*};
 
 use eframe::egui::{DragValue, Ui};
 use egui_dock::{DockArea, DockState, NodeIndex, SurfaceIndex, TabViewer};
-use num_traits::{Saturating, SaturatingSub, ToPrimitive};
+use num_traits::ToPrimitive;
 
 use crate::animation_window::{AnimationWindow, AnimationWindowFrameData};
 use crate::event_bus::EventBus;

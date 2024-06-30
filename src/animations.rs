@@ -109,7 +109,7 @@ impl Frame {
             id: frame_id(),
         }
     }
-    pub fn id(&self)  -> FrameId {
+    pub fn id(&self) -> FrameId {
         self.id
     }
 }
@@ -142,7 +142,7 @@ impl From<i32> for Frame {
 }
 
 thread_local! {
-    static FRAME_ID_COUNTER: Cell<u32> = Cell::new(0);
+    static FRAME_ID_COUNTER: Cell<u32> = const { Cell::new(0) };
 }
 
 pub fn frame_id() -> FrameId {

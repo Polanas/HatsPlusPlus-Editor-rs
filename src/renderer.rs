@@ -1,8 +1,9 @@
+#![allow(dead_code)]
 use std::cell::RefCell;
 use std::sync::Arc;
 use std::{collections::HashMap, path::Path, rc::Rc};
 
-use bevy_math::{IVec2, Vec2};
+use bevy_math::IVec2;
 use eframe::egui::Ui;
 use eframe::glow::{
     self, HasContext, NativeBuffer, NativeFramebuffer, NativeVertexArray, PixelUnpackData,
@@ -80,9 +81,14 @@ impl RenderData {
         ];
         let frag = include_str!("room_shader/frag.glsl");
         let vert = include_str!("room_shader/vert.glsl");
-        let shader =
-            Shader::from_text_with_path(gl, "src/room_shader/frag.glsl",frag, "src/room_shader/vert.glsl", vert)
-                .unwrap();
+        let shader = Shader::from_text_with_path(
+            gl,
+            "src/room_shader/frag.glsl",
+            frag,
+            "src/room_shader/vert.glsl",
+            vert,
+        )
+        .unwrap();
         let texture = Texture::with_size(gl, RENDERER_SCREEN_SIZE).unwrap();
         unsafe {
             let vertices_u8: &[u8] = core::slice::from_raw_parts(
@@ -148,7 +154,7 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(size: IVec2, screen_update: ScreenUpdate, gl: &Context) -> Self {
+    pub fn new(size: IVec2, screen_update: ScreenUpdate) -> Self {
         Self {
             bitmaps: Bitmaps::new(),
             sprites: vec![],
@@ -196,7 +202,7 @@ impl Renderer {
         ui.painter().add(callback);
     }
 
-    fn draw_texture_gl(screen: crate::texture::Inner, gl: &Context, shader: Shader) {}
+    fn draw_texture_gl(_screen: crate::texture::Inner, _gl: &Context, _shader: Shader) {}
 
     fn draw_to_texture(&mut self, gl: &Context) {
         let render_data = render_data(gl);
