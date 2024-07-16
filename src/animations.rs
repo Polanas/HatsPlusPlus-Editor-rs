@@ -8,9 +8,9 @@ use crate::{
     metapixels::{self, Metapixels},
     prelude::{Metapixel, MetapixelType},
 };
-use AnimationType as AT;
+use AnimType as AT;
 //TODO: add on death/ressurect animations?
-pub static WINGS_ANIMATIONS: Lazy<Vec<AnimationType>> = Lazy::new(|| {
+pub static WINGS_ANIMATIONS: Lazy<Vec<AnimType>> = Lazy::new(|| {
     vec![
         AT::Flying,
         AT::StartIdle,
@@ -19,7 +19,7 @@ pub static WINGS_ANIMATIONS: Lazy<Vec<AnimationType>> = Lazy::new(|| {
         AT::Idle,
     ]
 });
-pub static PET_AIMATIONS: Lazy<Vec<AnimationType>> = Lazy::new(|| {
+pub static PET_AIMATIONS: Lazy<Vec<AnimType>> = Lazy::new(|| {
     vec![
         AT::OnApproach,
         AT::OnDuckDeath,
@@ -28,7 +28,7 @@ pub static PET_AIMATIONS: Lazy<Vec<AnimationType>> = Lazy::new(|| {
         AT::OnRessurect,
     ]
 });
-pub static WEREABLE_ANIMATIONS: Lazy<Vec<AnimationType>> = Lazy::new(|| {
+pub static WEREABLE_ANIMATIONS: Lazy<Vec<AnimType>> = Lazy::new(|| {
     vec![
         AT::OnDefault,
         AT::OnPressQuack,
@@ -38,7 +38,7 @@ pub static WEREABLE_ANIMATIONS: Lazy<Vec<AnimationType>> = Lazy::new(|| {
     ]
 });
 
-pub fn avalible_animations<'a>(hat_type: HatType) -> Option<&'a [AnimationType]> {
+pub fn avalible_animations<'a>(hat_type: HatType) -> Option<&'a [AnimType]> {
     match hat_type {
         HatType::Wereable => Some(&WEREABLE_ANIMATIONS),
         HatType::Wings => Some(&WINGS_ANIMATIONS),
@@ -48,7 +48,7 @@ pub fn avalible_animations<'a>(hat_type: HatType) -> Option<&'a [AnimationType]>
 }
 
 #[derive(Copy, Clone, Debug, FromPrimitive, PartialEq, Eq)]
-pub enum AnimationType {
+pub enum AnimType {
     OnDefault,
     OnPressQuack,
     OnReleaseQuack,
@@ -64,22 +64,22 @@ pub enum AnimationType {
     Unspecified,
 }
 
-impl Display for AnimationType {
+impl Display for AnimType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let name = match self {
-            AnimationType::OnDefault => "On Default",
-            AnimationType::OnPressQuack => "On Press Quack",
-            AnimationType::OnReleaseQuack => "On Release Quack",
-            AnimationType::OnStatic => "On Static",
-            AnimationType::OnApproach => "On Approach",
-            AnimationType::OnDuckDeath => "On Duck Death",
-            AnimationType::Flying => "Flying",
-            AnimationType::StartIdle => "Start Idle",
-            AnimationType::Gliding => "Gliding",
-            AnimationType::StartGliding => "Start Gliding",
-            AnimationType::Idle => "Idle",
-            AnimationType::OnRessurect => "On Ressurect",
-            AnimationType::Unspecified => "Unspecified",
+            AnimType::OnDefault => "On Default",
+            AnimType::OnPressQuack => "On Press Quack",
+            AnimType::OnReleaseQuack => "On Release Quack",
+            AnimType::OnStatic => "On Static",
+            AnimType::OnApproach => "On Approach",
+            AnimType::OnDuckDeath => "On Duck Death",
+            AnimType::Flying => "Flying",
+            AnimType::StartIdle => "Start Idle",
+            AnimType::Gliding => "Gliding",
+            AnimType::StartGliding => "Start Gliding",
+            AnimType::Idle => "Idle",
+            AnimType::OnRessurect => "On Ressurect",
+            AnimType::Unspecified => "Unspecified",
         };
         write!(f, "{}", name)
     }
@@ -109,7 +109,7 @@ impl Frame {
             id: frame_id(),
         }
     }
-    pub fn id(&self) -> FrameId {
+    pub fn id(&self)  -> FrameId {
         self.id
     }
 }
@@ -153,7 +153,7 @@ pub fn frame_id() -> FrameId {
 
 #[derive(Clone, Debug)]
 pub struct Animation {
-    pub anim_type: AnimationType,
+    pub anim_type: AnimType,
     pub delay: i32,
     pub looping: bool,
     pub frames: Vec<Frame>,
@@ -163,7 +163,7 @@ pub struct Animation {
 }
 
 impl Animation {
-    pub fn new(anim_type: AnimationType, delay: i32, looping: bool, frames: Vec<Frame>) -> Self {
+    pub fn new(anim_type: AnimType, delay: i32, looping: bool, frames: Vec<Frame>) -> Self {
         Self {
             anim_type,
             delay,

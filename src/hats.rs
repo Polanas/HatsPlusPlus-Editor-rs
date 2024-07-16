@@ -1,11 +1,12 @@
 use core::panic;
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
-use crate::animations::{Animation, AnimationType};
+use crate::animations::{AnimType, Animation};
 use crate::file_utils::FileStemString;
 use crate::frames_from_range::frames_from_range;
 use crate::hat_utils::*;
@@ -39,16 +40,16 @@ macro_rules! impl_abstract_hat {
             fn texture(&self) -> Option<&Texture> {
                 self.$base_name.texture.as_ref()
             }
-            fn animations(&self) -> Option<&[Animation]> {
-                Some(&self.$($anims_name).+[..])
+            fn animations(&self) -> Option<& Vec<AnimationCell>> {
+                Some(&self.$($anims_name).+)
             }
             fn frames_amount(&self) -> u32 {
                 let frames_x = (self.texture().map(|t| t.width()).unwrap_or(0)) / self.base().frame_size.x;
                 let frames_y = (self.texture().map(|t| t.height()).unwrap_or(0)) / self.base().frame_size.y;
                 (frames_x * frames_y) as u32
             }
-            fn animations_mut(&mut self) -> Option<&mut [Animation]> {
-                Some(&mut self.$($anims_name).+[..])
+            fn animations_mut(&mut self) -> Option<&mut Vec<AnimationCell>> {
+                Some(&mut self.$($anims_name).+)
             }
             fn id(&self) -> HatElementId {
                 self.base().id
@@ -69,7 +70,7 @@ macro_rules! impl_abstract_hat {
             fn texture_mut(&mut self) -> Option<&mut Texture> {
                 self.$base_name.texture.as_mut()
             }
-            fn animations(&self) -> Option<&[Animation]> {
+            fn animations(&self) -> Option<&Vec<AnimationCell>> {
                 None
             }
             fn frames_amount(&self) -> u32 {
@@ -77,7 +78,7 @@ macro_rules! impl_abstract_hat {
                 let frames_y = (self.texture().map(|t| t.height()).unwrap_or(0)) / self.base().frame_size.y;
                 (frames_x * frames_y) as u32
             }
-            fn animations_mut(&mut self) -> Option<&mut [Animation]> {
+            fn animations_mut(&mut self) -> Option<&mut Vec<AnimationCell>> {
                 None
             }
             fn id(&self) -> HatElementId {
@@ -123,6 +124,8 @@ pub fn hat_id() -> HatElementId {
     HatElementId(id)
 }
 
+type AnimationCell = Rc<RefCell<Animation>>;
+
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Default)]
 pub struct HatElementId(u32);
 
@@ -132,8 +135,8 @@ pub trait AbstractHat: Downcast + std::fmt::Debug {
     fn base_mut(&mut self) -> &mut HatBase;
     fn texture(&self) -> Option<&Texture>;
     fn texture_mut(&mut self) -> Option<&mut Texture>;
-    fn animations(&self) -> Option<&[Animation]>;
-    fn animations_mut(&mut self) -> Option<&mut [Animation]>;
+    fn animations(&self) -> Option<&Vec<AnimationCell>>;
+    fn animations_mut(&mut self) -> Option<&mut Vec<AnimationCell>>;
     fn frames_amount(&self) -> u32;
     fn id(&self) -> HatElementId;
 }
@@ -249,7 +252,7 @@ pub enum HatType {
 impl Display for HatType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let name = (match self {
-            HatType::Wereable => "Wereable Hat",
+            HatType::Wereable => "Wearable Hat",
             HatType::Wings => "Wings Hat",
             HatType::Extra => "Extra",
             HatType::FlyingPet => "Flying Pet",
@@ -265,7 +268,7 @@ impl Display for HatType {
 impl HatType {
     pub fn get_display_name(&self, ui_text: &UiText) -> String {
         match self {
-            Self::Wereable => ui_text.get("Wereable"),
+            Self::Wereable => ui_text.get("Wearable"),
             Self::Wings => ui_text.get("Wings"),
             Self::Extra => ui_text.get("Extra"),
             Self::FlyingPet => ui_text.get("Flying pet"),
@@ -360,7 +363,7 @@ impl LoadHat for FlyingPet {
                 }
                 MetapixelType::AnimationType => {
                     if let Some(anim) = get_animation(&metapixels, i) {
-                        hat.pet_base.animations.push(anim)
+                        hat.pet_base.animations.push(RefCell::new(anim).into())
                     }
                 }
                 MetapixelType::IsBigHat => hat.pet_base.is_big = true,
@@ -411,7 +414,7 @@ impl LoadHat for WalkingPet {
                 }
                 MetapixelType::AnimationType => {
                     if let Some(anim) = get_animation(&metapixels, i) {
-                        hat.pet_base.animations.push(anim)
+                        hat.pet_base.animations.push(RefCell::new(anim).into())
                     }
                 }
                 MetapixelType::IsBigHat => hat.pet_base.is_big = true,
@@ -431,7 +434,7 @@ pub struct PetBase {
     pub flipped: bool,
     pub is_big: bool,
     pub link_frame_state: LinkFrameState,
-    pub animations: Vec<Animation>,
+    pub animations: Vec<AnimationCell>,
 }
 
 impl GenMetapixels for FlyingPet {
@@ -466,7 +469,7 @@ impl GenMetapixels for FlyingPet {
         }
 
         for anim in &self.pet_base.animations {
-            for pixel in anim.gen_metapixels() {
+            for pixel in anim.borrow().gen_metapixels() {
                 metapixels.push_raw(pixel);
             }
         }
@@ -500,7 +503,7 @@ impl GenMetapixels for WalkingPet {
         }
 
         for anim in &self.pet_base.animations {
-            for pixel in anim.gen_metapixels() {
+            for pixel in anim.borrow().gen_metapixels() {
                 metapixels.push_raw(pixel);
             }
         }
@@ -571,7 +574,7 @@ pub struct Wings {
     pub changes_animations: bool,
     pub size_state: bool,
     pub base: HatBase,
-    pub animations: Vec<Animation>,
+    pub animations: Vec<AnimationCell>,
 }
 
 impl LoadHat for Wings {
@@ -638,17 +641,17 @@ impl LoadHat for Wings {
                 _ => (),
             }
         }
-
-        hat.animations.push(Animation::new(
-            AnimationType::OnDefault,
-            if has_auto_speed {
-                hat.auto_anim_speed
-            } else {
-                DEFAULT_AUTO_SPEED
-            },
+        hat.auto_anim_speed = if has_auto_speed {
+            hat.auto_anim_speed
+        } else {
+            DEFAULT_AUTO_SPEED
+        };
+        hat.animations.push(RefCell::new(Animation::new(
+            AnimType::OnDefault,
+            hat.auto_anim_speed,
             false,
             frames_from_range(0, hat.frames_amount() as i32 - 1),
-        ));
+        )).into());
 
         Ok(hat)
     }
@@ -737,9 +740,9 @@ impl GenMetapixels for Wings {
 pub struct Wereable {
     pub strapped_on: bool,
     pub is_big: bool,
-    pub animations: Vec<Animation>,
+    pub animations: Vec<AnimationCell>,
     pub link_frame_state: LinkFrameState,
-    pub on_spawn_animation: Option<AnimationType>,
+    pub on_spawn_animation: Option<AnimType>,
     pub base: HatBase,
 }
 
@@ -770,7 +773,7 @@ impl LoadHat for Wereable {
         for (i, pixel) in metapixels.iter().enumerate() {
             match pixel.get_type() {
                 MetapixelType::OnSpawnAnimation => {
-                    hat.on_spawn_animation = AnimationType::from_u8(pixel.g);
+                    hat.on_spawn_animation = AnimType::from_u8(pixel.g);
                 }
                 MetapixelType::StrappedOn => hat.strapped_on = true,
                 MetapixelType::IsBigHat => hat.is_big = true,
@@ -786,7 +789,7 @@ impl LoadHat for Wereable {
                 }
                 MetapixelType::AnimationType => {
                     if let Some(anim) = get_animation(&metapixels, i) {
-                        hat.animations.push(anim)
+                        hat.animations.push(RefCell::new(anim).into())
                     }
                 }
                 _ => {}
@@ -821,7 +824,7 @@ impl GenMetapixels for Wereable {
             );
         }
         for anim in &self.animations {
-            for pixel in anim.gen_metapixels() {
+            for pixel in anim.borrow().gen_metapixels() {
                 metapixels.push_raw(pixel);
             }
         }
@@ -869,7 +872,7 @@ impl GenMetapixels for RoomHat {
 #[derive(Debug, Default)]
 pub struct Extra {
     pub base: HatBase,
-    pub animations: Vec<Animation>,
+    pub animations: Vec<AnimationCell>,
 }
 
 impl LoadHat for Extra {
@@ -901,12 +904,12 @@ impl LoadHat for Extra {
             ..Default::default()
         };
 
-        hat.animations.push(Animation::new(
-            AnimationType::OnDefault,
+        hat.animations.push(RefCell::new(Animation::new(
+            AnimType::OnDefault,
             4,
             false,
             frames_from_range(0, hat.frames_amount() as i32 - 1),
-        ));
+        )).into());
 
         for pixel in metapixels {
             if let MetapixelType::FrameSize = pixel.get_type() {
@@ -1104,6 +1107,8 @@ impl Hat {
     }
     pub fn save(&self, dir_path: impl AsRef<Path>) -> Result<()> {
         let path = dir_path.as_ref();
+        std::fs::remove_dir_all(path)?;
+        std::fs::create_dir(path)?;
         for element in self.unique_elemets.values() {
             element.save(path)?;
         }

@@ -1,3 +1,6 @@
+use std::cell::Ref;
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use bevy_math::IVec2;
@@ -7,15 +10,13 @@ use eframe::glow::Context;
 use eframe::glow::{self, HasContext};
 use once_cell::sync::Lazy;
 
-use crate::prelude::AnimationType;
+use crate::animations::AnimType;
 use crate::{animations::Animation, shader::Shader, texture::Texture, VERTEX_ARRAY};
 use crate::{egui_utils, AnimationWindowAction};
 
 const DUCK_GAME_HERTZ: f32 = 60.0;
 const MAX_SYMBOL_WIDTH: i32 = 16;
-const TEXTURES_SCALE_FACTOR: f32 = 5.0;
-static DEFAULT_ANIMATION: Lazy<Animation> =
-    Lazy::new(|| Animation::new(AnimationType::OnDefault, 1, false, vec![0.into()]));
+pub const TEXTURES_SCALE_FACTOR: f32 = 5.0;
 
 #[derive(Debug)]
 pub struct AnimationWindow {
@@ -23,6 +24,7 @@ pub struct AnimationWindow {
     pub current_frame_index: usize,
     frame_timer: f32,
     paused: bool,
+    default_anim: AnimationCell,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -38,6 +40,7 @@ fn draw_texture(gl: &Context, texture: crate::texture::Inner, shader: Shader, un
     let vertex_array = VERTEX_ARRAY.read().unwrap().unwrap();
     unsafe {
         shader.activate(gl);
+        shader.set_i32(gl, "background_type", 0);
         shader.set_f32(gl, "current_frame", uniforms.current_frame);
         shader.set_f32(gl, "time", uniforms.time);
         shader.set_vec2(gl, "frame_size", uniforms.frame_size);
@@ -48,12 +51,15 @@ fn draw_texture(gl: &Context, texture: crate::texture::Inner, shader: Shader, un
         gl.draw_arrays(glow::TRIANGLES, 0, 6);
     }
 }
+
+type AnimationCell = Rc<RefCell<Animation>>;
+
 pub struct AnimationWindowFrameData<'a> {
     pub time: f32,
     pub ui: &'a Ui,
     pub shader: Shader,
     pub hertz: f32,
-    pub animations: Option<Vec<Animation>>,
+    pub animations: Option<Vec<AnimationCell>>,
     pub texture: Texture,
     pub frame_size: IVec2,
     pub hat_name: String,
@@ -67,6 +73,13 @@ impl AnimationWindow {
             current_anim_index: 0,
             current_frame_index: 0,
             frame_timer: 0.0,
+            default_anim: RefCell::new(Animation::new(
+                AnimType::OnDefault,
+                1,
+                false,
+                vec![0.into()],
+            ))
+            .into(),
         }
     }
     pub fn draw(&mut self, data: AnimationWindowFrameData) {
@@ -78,17 +91,16 @@ impl AnimationWindow {
                 .unwrap_or(0)
                 .saturating_sub(1),
         );
-        let default_animation = &*DEFAULT_ANIMATION;
         let animation = {
-            if let Some(anims) = &data.animations {
-                anims.get(self.current_anim_index)
+            if let Some(ref anims) = data.animations {
+                anims.get(self.current_anim_index).cloned()
             } else {
-                Some(default_animation)
+                Some(self.default_anim.clone())
             }
         };
-        if let Some(animation) = animation {
+        if let Some(animation) = &animation {
             if !self.paused {
-                self.update(animation, data.hertz);
+                self.update(animation.borrow(), data.hertz);
             }
         };
         let frame_screen_width = data.frame_size.x as f32 * TEXTURES_SCALE_FACTOR;
@@ -124,7 +136,7 @@ impl AnimationWindow {
                             .unwrap_or_default()
                             .enumerate()
                         {
-                            let anim_name = anim.anim_type.to_string();
+                            let anim_name = anim.borrow().anim_type.to_string();
                             ui.scope(|ui| {
                                 if i == self.current_anim_index {
                                     let widgets = &mut ui.style_mut().visuals.widgets;
@@ -149,8 +161,10 @@ impl AnimationWindow {
                     },
                 );
                 let current_frame = animation
+                    .as_ref()
                     .map(|anim| {
-                        anim.frames
+                        anim.borrow()
+                            .frames
                             .get(self.current_frame_index)
                             .map(|f| f.value)
                             .unwrap_or(0)
@@ -174,7 +188,7 @@ impl AnimationWindow {
                     })),
                 };
                 ui.painter().add(callback);
-                let Some(animation) = animation else {
+                let Some(animation) = animation.as_ref().map(|a| a.borrow()) else {
                     return;
                 };
                 if animation.frames.len() < 2 {
@@ -229,7 +243,7 @@ impl AnimationWindow {
                 self.current_frame_index %= animation.frames.len();
             });
     }
-    fn update(&mut self, animation: &Animation, hertz: f32) {
+    fn update(&mut self, animation: Ref<Animation>, hertz: f32) {
         if animation.frames.is_empty() {
             self.current_frame_index = 0;
             return;

@@ -8,6 +8,7 @@ uniform vec2 frame_size;
 uniform float current_frame;
 uniform float time;
 uniform vec2 offset;
+uniform int background_type;
 
 vec2 index_to_position(float index, float width) {
     float x = round(mod(index, width));
@@ -29,7 +30,7 @@ void main()
     vec2 grid_uv = uv;
     uv = floor(uv / pixel_size) * pixel_size;
     vec2 correct_offset = floor(offset) / frame_size / 5.0;
-    grid_uv += floor(offset) / frame_size / 20;
+    // grid_uv += floor(offset) / frame_size / 20;
     grid_uv /= tex_size;
     // adjust uv to be in the center of a pixel 
     uv += .5 * pixel_size;
@@ -45,4 +46,7 @@ void main()
     vec3 grid_col = grid_state > 0 ? GRID_COL1 : GRID_COL2;
     vec4 tex_col = texture2D(texture, uv);
     frag_color = tex_col.a <= 0.0 ? vec4(grid_col, 1.0) : mix(vec4(grid_col,1.0), tex_col, vec4(tex_col.a));
+    if (tex_col.a <= 0.0 && background_type == 1) {
+        discard;
+    }
 }

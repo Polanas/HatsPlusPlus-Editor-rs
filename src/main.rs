@@ -21,6 +21,7 @@ mod shader;
 mod shader_reloader;
 mod shortcuts;
 mod sprite;
+mod sprite_drawer;
 mod tabs;
 mod texture;
 mod texture_reloader;
@@ -48,11 +49,11 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::RwLock;
 use std::time::SystemTime;
-use tabs::{Tab, Tabs};
+use tabs::{FrameData, HelpTabData, Tab, TabType, Tabs};
 use texture_reloader::TextureReloader;
 use ui_text::{Language, UiText};
 
-const HERTZ_MAGIC_NUMBER: u32 = 3;
+const HERTZ_MAGIC_NUMBER: f32 = 1.5;
 pub static VERTEX_BUFFER: RwLock<Option<NativeBuffer>> = RwLock::new(None);
 pub static VERTEX_ARRAY: RwLock<Option<NativeVertexArray>> = RwLock::new(None);
 
@@ -62,6 +63,8 @@ pub enum Theme {
     Frappe,
     Macchiato,
     Mocha,
+    LatteGruvbox,
+    MochaGruvbox,
 }
 
 impl Theme {
@@ -71,6 +74,8 @@ impl Theme {
             Theme::Frappe => catppuccin_egui::FRAPPE,
             Theme::Macchiato => catppuccin_egui::MACCHIATO,
             Theme::Mocha => catppuccin_egui::MOCHA,
+            Theme::LatteGruvbox => catppuccin_egui::LATTE_GRUVBOX,
+            Theme::MochaGruvbox => catppuccin_egui::MOCHA_GRUVBOX,
         }
     }
 }
@@ -84,7 +89,7 @@ pub struct AppConfig {
 
 impl AppConfig {
     pub fn is_light_theme(&self) -> bool {
-        matches!(self.theme, Theme::Latte)
+        matches!(self.theme, Theme::Latte | Theme::LatteGruvbox)
     }
     pub fn remove_invalid_latest(&mut self) {
         self.latest_hats.retain(|path| path.exists());
@@ -98,17 +103,6 @@ pub enum AnimationWindowAction {
     Pause,
     IncreaseFrame,
     DecreaseFrame,
-}
-
-pub struct FrameData<'a> {
-    texture_reloader: &'a mut TextureReloader,
-    time: f32,
-    anim_window_action: AnimationWindowAction,
-    gl: &'a Context,
-    shader: Shader,
-    hertz: u32,
-    ui_text: Rc<UiText>,
-    config: &'a mut AppConfig,
 }
 
 trait ShortcutPressed {
@@ -131,18 +125,22 @@ struct MyEguiApp {
     last_time: SystemTime,
     current_time: SystemTime,
     time: f32,
-    hertz: u32,
-    calculated_hertz: bool,
+    hertz: f32,
+    current_hertz: f32,
+    hertz_timer: f32,
+    help_tab_data: Option<HelpTabData>,
 }
 
 impl MyEguiApp {
     fn calculate_hertz(&mut self) {
-        if self.time < 1.0 {
-            self.hertz += 1;
-        } else if !self.calculated_hertz {
-            self.calculated_hertz = true;
-            self.hertz -= HERTZ_MAGIC_NUMBER;
+        if self.hertz_timer <= 1.0 {
+            self.current_hertz += 1.0;
+        } else {
+            self.hertz = self.current_hertz - 1.0;
+            self.hertz_timer = 0.0;
+            self.current_hertz = 0.0;
         }
+        self.hertz_timer += self.delta_time();
     }
 
     fn delta_time(&self) -> f32 {
@@ -164,7 +162,7 @@ impl MyEguiApp {
             self.add_new_hat();
         }
         if ui.shortcut_pressed(shortcuts::HOME) {
-            self.open_home_tab();
+            self.tabs.open_home_tab(&self.ui_text);
         }
         if ui.shortcut_pressed(shortcuts::SAVE_AS) {
             self.save_hat_as();
@@ -242,12 +240,18 @@ impl MyEguiApp {
         ui.menu_button(text.get("Elements"), |ui| {
             self.draw_elements_menu(ui, gl);
         });
+        ui.menu_button(text.get("Help"), |ui| {
+            if ui.button(text.get("Open Help")).clicked() {
+                self.tabs.open_help_tab(&self.ui_text);
+                ui.close_menu();
+            }
+        });
         ui.menu_button(text.get("Settings"), |ui| {
             self.draw_setings_menu(ui);
         });
         ui.menu_button(text.get("Other"), |ui| {
             if ui.button(text.get("Open Home")).clicked() {
-                self.open_home_tab();
+                self.tabs.open_home_tab(&self.ui_text);
                 ui.close_menu();
             }
         });
@@ -281,8 +285,7 @@ impl MyEguiApp {
                     }
                 };
             }
-            let is_home = inner.is_home_tab;
-            ui.add_enabled_ui(!is_home, |ui| {
+            ui.add_enabled_ui(matches!(inner.tab_type, TabType::Regular), |ui| {
                 ui.collapsing(text.get("Add"), |ui| {
                     try_add_hat!(ui, wereable, Wereable);
                     try_add_hat!(ui, wings, Wings);
@@ -358,17 +361,6 @@ impl MyEguiApp {
         }
     }
 
-    fn open_home_tab(&mut self) {
-        self.tabs
-            .dock_state
-            .push_to_focused_leaf(Tab::new_home(format!(
-                "{0} {1}",
-                self.ui_text.get("Home"),
-                self.tabs.home_tabs_counter
-            )));
-        self.tabs.home_tabs_counter += 1;
-    }
-
     fn last_interacted_tab(&mut self) -> Option<&Tab> {
         self.tabs
             .dock_state
@@ -440,7 +432,7 @@ impl MyEguiApp {
         let dir_path = rfd::FileDialog::new().pick_folder()?;
         let last_tab = self.last_interacted_tab_mut()?;
         let mut inner = last_tab.inner.borrow_mut();
-        if inner.is_home_tab {
+        if !matches!(inner.tab_type, TabType::Regular) {
             return None;
         }
         inner.hat.path = Some(dir_path.clone());
@@ -549,17 +541,19 @@ impl MyEguiApp {
         let home_name = ui_text.get("Home");
         MyEguiApp::init_opengl_objects(gl);
         Self {
+            hertz_timer: 0.0,
+            current_hertz: 0.0,
             ui_text,
             config: config.into(),
             animation_shader,
             shader_reloader,
             texture_reloader: TextureReloader::new(),
             time: 0.0,
-            hertz: 0,
+            hertz: 0.0,
             tabs: Tabs::new(home_name),
             last_time: SystemTime::now(),
             current_time: SystemTime::now(),
-            calculated_hertz: false,
+            help_tab_data: None,
         }
     }
 
@@ -570,9 +564,19 @@ impl MyEguiApp {
 
     fn set_language(&mut self, lang: Language) {
         Rc::get_mut(&mut self.config).unwrap().language = lang;
+        self.update_tab_titles(lang);
+    }
+
+    fn update_tab_titles(&mut self, lang: Language) {
         let lang_data = &self.ui_text.data;
         for tab in self.tabs.dock_state.iter_all_tabs_mut() {
             let mut inner = tab.1.inner.borrow_mut();
+            if inner.title == lang_data["ru"]["Q&A"] || inner.title == lang_data["en"]["Q&A"] {
+                inner.title = match lang {
+                    Language::English => lang_data["en"]["Q&A"].clone(),
+                    Language::Russian => lang_data["ru"]["Q&A"].clone(),
+                };
+            }
             if inner.title == lang_data["ru"]["Home"] || inner.title == lang_data["en"]["Home"] {
                 inner.title = match lang {
                     Language::English => lang_data["en"]["Home"].clone(),
@@ -585,7 +589,7 @@ impl MyEguiApp {
     fn show_hidden_page(&mut self, ui: &mut Ui) {
         if self.tabs.dock_state.iter_all_tabs().count() == 0 {
             ui.label("May I congratulate you on finding this hidden page! As a little present, check out this cute hat 🐱");
-            let image_source = egui::include_image!("../cutie.png");
+            let image_source = egui::include_image!("../images/cutie.png");
             let image = egui::Image::new(image_source).rounding(20.0);
             ui.add(image).on_hover_text("Ins't it adorable, right?");
         }
@@ -637,6 +641,12 @@ impl MyEguiApp {
                 ui.close_menu();
             } else if ui.button("Mocha").clicked() {
                 self.set_theme(ui, Theme::Mocha);
+                ui.close_menu();
+            } else if ui.button("Latte gruvbox").clicked() {
+                self.set_theme(ui, Theme::LatteGruvbox);
+                ui.close_menu();
+            } else if ui.button("Mocha gruvbox").clicked() {
+                self.set_theme(ui, Theme::MochaGruvbox);
                 ui.close_menu();
             }
         });
@@ -690,6 +700,8 @@ impl eframe::App for MyEguiApp {
                     anim_window_action,
                     time: self.time,
                     texture_reloader: &mut self.texture_reloader,
+                    new_help_tab: false,
+                    help_data: &mut self.help_tab_data,
                 },
             );
             self.execute_shortcuts(gl, ui);

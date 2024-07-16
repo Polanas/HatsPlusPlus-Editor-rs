@@ -4,6 +4,7 @@ use num_traits::FromPrimitive;
 use pixas::bitmap::{Bitmap, BitmapLoadError};
 use std::path::Path;
 
+use crate::animations::AnimType;
 use crate::frames_from_range::frames_from_range;
 use crate::prelude::*;
 
@@ -46,7 +47,7 @@ pub fn get_animation(metapixels: &[Metapixel], index: usize) -> Option<Animation
         MetapixelType::AnimationFrame | MetapixelType::AnimationFramePeriod => {}
         _ => return None,
     };
-    let anim_type = AnimationType::from_u8(anim_type.g)?;
+    let anim_type = AnimType::from_u8(anim_type.g)?;
     let looping = looping.g.max(1) == 0;
 
     if let MetapixelType::AnimationFramePeriod = frame_or_range.get_type() {

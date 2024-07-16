@@ -171,6 +171,10 @@ impl Shader {
         unsafe { gl.uniform_1_f32(self.uniforms().get(name), value) };
     }
 
+    pub fn set_i32(&self, gl: &eframe::glow::Context, name: &str, value: i32) {
+        unsafe { gl.uniform_1_i32(self.uniforms().get(name), value) };
+    }
+
     pub fn set_vec2(&self, gl: &eframe::glow::Context, name: &str, value: Vec2) {
         unsafe { gl.uniform_2_f32(self.uniforms().get(name), value.x, value.y) };
     }
